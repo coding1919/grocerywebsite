@@ -28,11 +28,16 @@ export default function Header() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle search logic here
+    if (!searchQuery.trim()) return;
+    
     console.log('Search query:', searchQuery);
-    // Redirect to search results page (to be implemented)
-    // For now, we'll just redirect to home
-    setLocation('/');
+    // Redirect to home page with search query parameter
+    setLocation(`/?search=${encodeURIComponent(searchQuery.trim())}`);
+    
+    // Close mobile search after submitting
+    if (isMobileSearchOpen) {
+      setIsMobileSearchOpen(false);
+    }
   };
 
   const isVendorSection = location.startsWith('/vendor');

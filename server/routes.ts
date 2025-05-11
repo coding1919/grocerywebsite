@@ -303,6 +303,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Error during login" });
     }
   });
+  
+  app.post("/api/logout", async (req: Request, res: Response) => {
+    try {
+      // In a real app, this would invalidate the session/token
+      res.status(200).json({ message: "Logout successful" });
+    } catch (error) {
+      res.status(500).json({ message: "Error during logout" });
+    }
+  });
+  
+  app.get("/api/user", async (req: Request, res: Response) => {
+    try {
+      // In a real app, this would get the current user from session/token
+      // For now, we'll return a 401 to simulate no authenticated user
+      res.status(401).json({ message: "Not authenticated" });
+      
+      // When authentication is implemented, it would look more like:
+      // const userId = req.session.userId;
+      // if (!userId) {
+      //   return res.status(401).json({ message: "Not authenticated" });
+      // }
+      // const user = await storage.getUser(userId);
+      // if (!user) {
+      //   return res.status(404).json({ message: "User not found" });
+      // }
+      // const { password: _, ...userWithoutPassword } = user;
+      // res.json(userWithoutPassword);
+    } catch (error) {
+      res.status(500).json({ message: "Error fetching user" });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;

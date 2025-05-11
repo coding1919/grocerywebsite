@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CartProvider } from "@/context/CartContext";
 import { AuthProvider } from "@/hooks/use-auth";
+import { ProtectedRoute } from "@/lib/protected-route";
 import NotFound from "@/pages/not-found";
 import HomePage from "@/pages/HomePage";
 import StorePage from "@/pages/StorePage";
@@ -23,10 +24,14 @@ function Router() {
     <Switch>
       <Route path="/" component={HomePage} />
       <Route path="/store/:id" component={StorePage} />
-      <Route path="/checkout" component={CheckoutPage} />
-      <Route path="/orders" component={OrdersPage} />
+      <Route path="/auth" component={AuthPage} />
       <Route path="/vendor/login" component={VendorLoginPage} />
-      <Route path="/vendor/dashboard" component={VendorDashboardPage} />
+      
+      {/* Protected routes - require authentication */}
+      <ProtectedRoute path="/checkout" component={CheckoutPage} />
+      <ProtectedRoute path="/orders" component={OrdersPage} />
+      <ProtectedRoute path="/vendor/dashboard" component={VendorDashboardPage} />
+      
       <Route component={NotFound} />
     </Switch>
   );
@@ -34,20 +39,22 @@ function Router() {
 
 function App() {
   return (
-    <CartProvider>
-      <TooltipProvider>
-        <div className="min-h-screen flex flex-col bg-gray-50">
-          <Header />
-          <main className="flex-grow container mx-auto px-4 pb-20 md:pb-10">
-            <Router />
-          </main>
-          <MobileNav />
-          <Footer />
-          <CartSidebar />
-          <Toaster />
-        </div>
-      </TooltipProvider>
-    </CartProvider>
+    <AuthProvider>
+      <CartProvider>
+        <TooltipProvider>
+          <div className="min-h-screen flex flex-col bg-gray-50">
+            <Header />
+            <main className="flex-grow container mx-auto px-4 pb-20 md:pb-10">
+              <Router />
+            </main>
+            <MobileNav />
+            <Footer />
+            <CartSidebar />
+            <Toaster />
+          </div>
+        </TooltipProvider>
+      </CartProvider>
+    </AuthProvider>
   );
 }
 
