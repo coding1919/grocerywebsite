@@ -5,23 +5,23 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// Format currency (e.g., $3.99)
+// Format currency (e.g., ₹399)
 export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
+  return new Intl.NumberFormat('en-IN', {
     style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2
+    currency: 'INR',
+    maximumFractionDigits: 0
   }).format(amount);
 }
 
-// Distance calculation (returns in miles)
+// Distance calculation (returns in kilometers)
 export function calculateDistance(
   lat1: number, 
   lon1: number, 
   lat2: number, 
   lon2: number
 ): number {
-  const R = 3958.8; // Earth's radius in miles
+  const R = 6371; // Earth's radius in kilometers
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
   const a = 
