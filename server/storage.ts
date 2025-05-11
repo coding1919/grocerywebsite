@@ -15,6 +15,9 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, userData: Partial<User>): Promise<User | undefined>;
   
+  // Session store for authentication
+  sessionStore: session.Store;
+  
   // Store methods
   getStores(): Promise<Store[]>;
   getStore(id: number): Promise<Store | undefined>;
@@ -49,7 +52,7 @@ export interface IStorage {
   createOrderItem(orderItem: InsertOrderItem): Promise<OrderItem>;
 
   // Session store
-  sessionStore: session.SessionStore;
+  sessionStore: session.Store;
 }
 
 // In-memory implementation of the storage interface
