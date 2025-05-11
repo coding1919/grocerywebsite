@@ -33,7 +33,9 @@ const registerSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters" }),
   email: z.string().email({ message: "Please enter a valid email address" }),
   address: z.string().min(5, { message: "Address must be at least 5 characters" }),
-  phone: z.string().min(10, { message: "Please enter a valid phone number" }),
+  phone: z.string().min(10, { message: "Please enter a valid 10-digit Indian mobile number" }).max(10),
+  gstin: z.string().optional(),
+  fssaiLicense: z.string().optional(),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
@@ -63,6 +65,8 @@ export default function VendorLoginPage() {
       email: "",
       address: "",
       phone: "",
+      gstin: "",
+      fssaiLicense: "",
     },
   });
 
@@ -125,8 +129,8 @@ export default function VendorLoginPage() {
   return (
     <div className="min-h-screen py-8 flex items-center">
       <Helmet>
-        <title>Vendor Portal - QuickMart</title>
-        <meta name="description" content="Log in to the QuickMart vendor portal to manage your store and products." />
+        <title>Seller Portal - GroceryDukan</title>
+        <meta name="description" content="Log in to the GroceryDukan seller portal to manage your store and products." />
       </Helmet>
       
       <div className="container mx-auto px-4">
@@ -134,9 +138,9 @@ export default function VendorLoginPage() {
           <div>
             <Card className="border-none shadow-lg">
               <CardHeader>
-                <CardTitle className="text-2xl">Vendor Portal</CardTitle>
+                <CardTitle className="text-2xl">Seller Portal</CardTitle>
                 <CardDescription>
-                  Sign in to manage your grocery store
+                  Sign in to manage your grocery store on GroceryDukan
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -265,7 +269,7 @@ export default function VendorLoginPage() {
                             <FormItem>
                               <FormLabel>Store Address</FormLabel>
                               <FormControl>
-                                <Input placeholder="123 Market St, New York, NY 10001" {...field} />
+                                <Input placeholder="A-42, Sector 62, Noida, UP 201301" {...field} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -277,9 +281,37 @@ export default function VendorLoginPage() {
                           name="phone"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Phone Number</FormLabel>
+                              <FormLabel>Mobile Number</FormLabel>
                               <FormControl>
-                                <Input placeholder="(555) 123-4567" {...field} />
+                                <Input placeholder="9876543210" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={registerForm.control}
+                          name="gstin"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>GSTIN (optional)</FormLabel>
+                              <FormControl>
+                                <Input placeholder="22AAAAA0000A1Z5" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        
+                        <FormField
+                          control={registerForm.control}
+                          name="fssaiLicense"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>FSSAI License (optional)</FormLabel>
+                              <FormControl>
+                                <Input placeholder="12345678901234" {...field} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -310,9 +342,9 @@ export default function VendorLoginPage() {
           
           <div className="hidden lg:flex flex-col justify-center">
             <div className="bg-gradient-to-r from-primary/10 to-primary/30 p-8 rounded-xl">
-              <h2 className="text-3xl font-bold text-gray-800 mb-4">Grow Your Business with QuickMart</h2>
+              <h2 className="text-3xl font-bold text-gray-800 mb-4">Grow Your Business with GroceryDukan</h2>
               <p className="text-gray-700 mb-6">
-                Join our platform to connect with customers in your neighborhood. Manage your inventory, track orders, and boost your sales.
+                Join India's fastest growing grocery platform to connect with customers in your neighborhood. Manage your inventory, track orders, and boost your sales.
               </p>
               <div className="space-y-4">
                 <div className="flex items-start">
