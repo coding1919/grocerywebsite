@@ -276,8 +276,9 @@ export class MemStorage implements IStorage {
       { id: 3, name: 'Bakery', icon: 'ri-bread-line', colorClass: 'bg-accent/10 text-accent' },
       { id: 4, name: 'Dairy', icon: 'ri-milk-line', colorClass: 'bg-emerald-100 text-emerald-600' },
       { id: 5, name: 'Beverages', icon: 'ri-cup-line', colorClass: 'bg-amber-100 text-amber-600' },
-      { id: 6, name: 'Meat', icon: 'ri-meat-line', colorClass: 'bg-rose-100 text-rose-600' },
-      { id: 7, name: 'Household', icon: 'ri-home-gear-line', colorClass: 'bg-purple-100 text-purple-600' }
+      { id: 6, name: 'Masalas & Spices', icon: 'ri-seedling-line', colorClass: 'bg-rose-100 text-rose-600' },
+      { id: 7, name: 'Atta & Rice', icon: 'ri-seed-line', colorClass: 'bg-yellow-100 text-yellow-600' },
+      { id: 8, name: 'Household', icon: 'ri-home-gear-line', colorClass: 'bg-purple-100 text-purple-600' }
     ];
     
     categories.forEach(category => {
@@ -290,10 +291,10 @@ export class MemStorage implements IStorage {
       id: 1,
       username: 'vendor1',
       password: 'password123',
-      name: 'Fresh Foods Manager',
-      email: 'vendor@freshfoods.com',
-      address: '789 Market St, New York, NY 10001',
-      phone: '555-123-4567',
+      name: 'Rajesh Kumar',
+      email: 'rajesh@grocerydukan.com',
+      address: '42 M.G. Road, Bangalore, Karnataka 560001',
+      phone: '9876543210',
       isVendor: true
     };
     this.users.set(vendorUser.id, vendorUser);
@@ -304,47 +305,47 @@ export class MemStorage implements IStorage {
       {
         id: 1,
         vendorId: 1,
-        name: 'Fresh Foods Supermarket',
-        description: 'Fresh produce, dairy, bakery, and grocery items with a focus on organic options.',
+        name: 'Fresh Bazaar',
+        description: 'Premium grocery store with fresh produce, dairy, and pantry essentials at affordable prices.',
         imageUrl: 'https://images.unsplash.com/photo-1578916171728-46686eac8d58',
-        address: '123 Main St, New York, NY 10001',
-        location: '40.7128,-74.0060',
+        address: '23 Koramangala Main Road, Bangalore, Karnataka 560034',
+        location: '12.9352,77.6245',
         rating: 4.8,
         reviewCount: 243,
         deliveryTime: '20-35 min',
-        deliveryFee: 2.99,
-        minOrder: 15.00,
+        deliveryFee: 49,
+        minOrder: 299,
         openingHours: '7AM - 10PM'
       },
       {
         id: 2,
         vendorId: 1,
-        name: 'Organic Market',
-        description: 'Specializing in organic and locally-sourced products.',
+        name: 'Organic India',
+        description: 'Specializing in organic, pesticide-free vegetables and fruits sourced directly from local farmers.',
         imageUrl: 'https://images.unsplash.com/photo-1534723452862-4c874018d66d',
-        address: '456 Oak Ave, New York, NY 10002',
-        location: '40.7282,-73.9942',
+        address: '76 Indiranagar 100ft Road, Bangalore, Karnataka 560038',
+        location: '12.9784,77.6408',
         rating: 4.6,
         reviewCount: 158,
         deliveryTime: '25-40 min',
-        deliveryFee: 3.49,
-        minOrder: 20.00,
+        deliveryFee: 59,
+        minOrder: 399,
         openingHours: '8AM - 9PM'
       },
       {
         id: 3,
         vendorId: 1,
-        name: 'QuickStop Mart',
-        description: 'Convenient grocery store with all your daily essentials.',
+        name: 'Kirana Express',
+        description: 'Your neighborhood grocery store with all daily essentials delivered in under 30 minutes.',
         imageUrl: 'https://pixabay.com/get/gcf7cb827c648b7ccb499c8c97559278d1b2ee3c86b559293fb8d6050c4be518d9144fabdd937985cfdc4f6e15b6b311abc607c78441d6fb09dda152f15b29a39_1280.jpg',
-        address: '789 Pine St, New York, NY 10003',
-        location: '40.7053,-74.0088',
+        address: '112 JP Nagar 6th Phase, Bangalore, Karnataka 560078',
+        location: '12.9063,77.5955',
         rating: 4.3,
         reviewCount: 92,
         deliveryTime: '15-25 min',
-        deliveryFee: 1.99,
-        minOrder: 10.00,
-        openingHours: '6AM - 12AM'
+        deliveryFee: 29,
+        minOrder: 199,
+        openingHours: '6AM - 10PM'
       }
     ];
     
@@ -355,13 +356,13 @@ export class MemStorage implements IStorage {
 
     // Sample Products
     const products = [
-      // Fresh Foods Products
+      // Fresh Bazaar Products
       {
         id: 1,
         storeId: 1,
         categoryId: 1,
-        name: 'Organic Apples',
-        description: 'Fresh organic apples from local farms.',
+        name: 'Kashmiri Apples',
+        description: 'Fresh, sweet and juicy apples from Kashmir valley.',
         price: 3.99,
         unit: 'lb',
         imageUrl: 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6',
