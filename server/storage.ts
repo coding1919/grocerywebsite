@@ -15,9 +15,6 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, userData: Partial<User>): Promise<User | undefined>;
   
-  // Session store for authentication
-  sessionStore: session.Store;
-  
   // Store methods
   getStores(): Promise<Store[]>;
   getStore(id: number): Promise<Store | undefined>;
@@ -71,7 +68,7 @@ export class MemStorage implements IStorage {
   private orderIdCounter: number;
   private orderItemIdCounter: number;
   
-  sessionStore: session.SessionStore;
+  sessionStore: session.Store;
 
   constructor() {
     this.users = new Map();
@@ -107,7 +104,13 @@ export class MemStorage implements IStorage {
 
   async createUser(userData: InsertUser): Promise<User> {
     const id = this.userIdCounter++;
-    const user: User = { ...userData, id, isVendor: false };
+    const user: User = { 
+      ...userData, 
+      id, 
+      isVendor: false,
+      address: userData.address || null,
+      phone: userData.phone || null
+    };
     this.users.set(id, user);
     return user;
   }
@@ -141,7 +144,11 @@ export class MemStorage implements IStorage {
       ...storeData, 
       id, 
       rating: 0,
-      reviewCount: 0
+      reviewCount: 0,
+      description: storeData.description || null,
+      imageUrl: storeData.imageUrl || null,
+      openingHours: storeData.openingHours || null,
+      minOrder: storeData.minOrder || 0
     };
     this.stores.set(id, store);
     return store;
@@ -193,7 +200,16 @@ export class MemStorage implements IStorage {
 
   async createProduct(productData: InsertProduct): Promise<Product> {
     const id = this.productIdCounter++;
-    const product: Product = { ...productData, id };
+    const product: Product = { 
+      ...productData, 
+      id,
+      description: productData.description || null,
+      imageUrl: productData.imageUrl || null,
+      categoryId: productData.categoryId || null,
+      stock: productData.stock || 0,
+      sku: productData.sku || null,
+      isActive: productData.isActive !== undefined ? productData.isActive : true
+    };
     this.products.set(id, product);
     return product;
   }
