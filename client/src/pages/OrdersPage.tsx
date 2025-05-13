@@ -46,7 +46,7 @@ export default function OrdersPage() {
   return (
     <div className="py-8">
       <Helmet>
-        <title>My Orders - QuickMart</title>
+        <title>My Orders - YourGrocer</title>
         <meta name="description" content="Track your grocery orders and view order history." />
       </Helmet>
       

@@ -49,6 +49,130 @@ export default function VendorDashboardPage() {
   const { data: stores = [], isLoading: isStoresLoading } = useQuery<Store[]>({
     queryKey: [`/api/stores?vendorId=${vendorId}`],
   });
+
+  // Fetch all orders for analytics
+  const { data: orders = [] } = useQuery<Order[]>({
+    queryKey: [`/api/orders?vendorId=${vendorId}`],
+  });
+
+  // Fetch all products for analytics
+  const { data: products = [] } = useQuery<Product[]>({
+    queryKey: [`/api/products?vendorId=${vendorId}`],
+  });
+
+  // Delete store mutation
+  const deleteStoreMutation = useMutation({
+    mutationFn: async (storeId: number) => {
+      const response = await apiRequest("DELETE", `/api/stores/${storeId}`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to delete store");
+      }
+      return storeId;
+    },
+    onMutate: async (deletedStoreId) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: [`/api/stores?vendorId=${vendorId}`] as const });
+
+      // Snapshot the previous value
+      const previousStores = queryClient.getQueryData<Store[]>([`/api/stores?vendorId=${vendorId}`] as const);
+
+      // Optimistically update to the new value
+      queryClient.setQueryData<Store[]>(
+        [`/api/stores?vendorId=${vendorId}`] as const,
+        old => old?.filter(store => store.id !== deletedStoreId) ?? []
+      );
+
+      // Return a context object with the snapshotted value
+      return { previousStores };
+    },
+    onError: (err, deletedStoreId, context) => {
+      // If the mutation fails, use the context returned from onMutate to roll back
+      if (context?.previousStores) {
+        queryClient.setQueryData(
+          [`/api/stores?vendorId=${vendorId}`] as const,
+          context.previousStores
+        );
+      }
+      toast({
+        title: "Failed to delete store",
+        description: err.message,
+        variant: "destructive",
+      });
+    },
+    onSuccess: (deletedStoreId) => {
+      // Force refetch the stores list
+      queryClient.invalidateQueries({ 
+        queryKey: [`/api/stores?vendorId=${vendorId}`] as const,
+        refetchType: 'all'
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: [`/api/products?vendorId=${vendorId}`] as const,
+        refetchType: 'all'
+      });
+
+      // Close the store panel if it was open
+      if (selectedStoreId === deletedStoreId) {
+        setSelectedStoreId(null);
+      }
+
+      toast({
+        title: "Store deleted",
+        description: "The store and all its products have been removed successfully",
+      });
+    },
+    onSettled: () => {
+      // Always refetch after error or success to ensure data is in sync
+      queryClient.invalidateQueries({ 
+        queryKey: [`/api/stores?vendorId=${vendorId}`] as const,
+        refetchType: 'all'
+      });
+    },
+  });
+
+  const handleDeleteStore = (storeId: number) => {
+    if (window.confirm("Are you sure you want to delete this store? This will also delete all products and orders associated with this store. This action cannot be undone.")) {
+      deleteStoreMutation.mutate(storeId);
+    }
+  };
+  
+  // Calculate analytics
+  const analytics = {
+    totalRevenue: orders
+      .filter(order => order.status === "delivered")
+      .reduce((sum, order) => sum + order.totalAmount, 0),
+    totalOrders: orders.length,
+    totalProducts: products.length,
+    activeProducts: products.filter(p => p.isActive).length,
+    pendingOrders: orders.filter(o => o.status === "pending").length,
+    processingOrders: orders.filter(o => o.status === "processing").length,
+    outForDeliveryOrders: orders.filter(o => o.status === "out_for_delivery").length,
+    deliveredOrders: orders.filter(o => o.status === "delivered").length,
+    cancelledOrders: orders.filter(o => o.status === "cancelled").length,
+    averageOrderValue: orders.length > 0 
+      ? orders.reduce((sum, order) => sum + order.totalAmount, 0) / orders.length 
+      : 0
+  };
+
+  // Calculate month-over-month growth
+  const lastMonthOrders = orders.filter(order => {
+    const orderDate = new Date(order.createdAt);
+    const lastMonth = new Date();
+    lastMonth.setMonth(lastMonth.getMonth() - 1);
+    return orderDate >= lastMonth;
+  });
+
+  const lastMonthRevenue = lastMonthOrders
+    .filter(order => order.status === "delivered")
+    .reduce((sum, order) => sum + order.totalAmount, 0);
+
+  const revenueGrowth = analytics.totalRevenue > 0 && lastMonthRevenue > 0
+    ? ((analytics.totalRevenue - lastMonthRevenue) / lastMonthRevenue) * 100
+    : 0;
+
+  const orderGrowth = orders.length > 0 && lastMonthOrders.length > 0
+    ? ((orders.length - lastMonthOrders.length) / lastMonthOrders.length) * 100
+    : 0;
   
   const storeForm = useForm<StoreFormValues>({
     resolver: zodResolver(storeFormSchema),
@@ -97,15 +221,10 @@ export default function VendorDashboardPage() {
     createStoreMutation.mutate(data);
   };
   
-  // Analytics data
-  let totalRevenue = 0;
-  let totalOrders = 0;
-  let totalProducts = 0;
-  
   return (
     <div className="py-8">
       <Helmet>
-        <title>Vendor Dashboard - QuickMart</title>
+        <title>Vendor Dashboard - YourGrocer</title>
         <meta name="description" content="Manage your grocery store, products, and orders." />
       </Helmet>
       
@@ -124,8 +243,10 @@ export default function VendorDashboardPage() {
             <CardTitle className="text-sm text-gray-500">Total Revenue</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(totalRevenue)}</div>
-            <p className="text-xs text-green-600 mt-1">↑ 12% from last month</p>
+            <div className="text-2xl font-bold">{formatCurrency(analytics.totalRevenue)}</div>
+            <p className={`text-xs ${revenueGrowth >= 0 ? 'text-green-600' : 'text-red-600'} mt-1`}>
+              {revenueGrowth >= 0 ? '↑' : '↓'} {Math.abs(revenueGrowth).toFixed(1)}% from last month
+            </p>
           </CardContent>
         </Card>
         
@@ -134,8 +255,10 @@ export default function VendorDashboardPage() {
             <CardTitle className="text-sm text-gray-500">Total Orders</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalOrders}</div>
-            <p className="text-xs text-green-600 mt-1">↑ 8% from last month</p>
+            <div className="text-2xl font-bold">{analytics.totalOrders}</div>
+            <p className={`text-xs ${orderGrowth >= 0 ? 'text-green-600' : 'text-red-600'} mt-1`}>
+              {orderGrowth >= 0 ? '↑' : '↓'} {Math.abs(orderGrowth).toFixed(1)}% from last month
+            </p>
           </CardContent>
         </Card>
         
@@ -144,8 +267,10 @@ export default function VendorDashboardPage() {
             <CardTitle className="text-sm text-gray-500">Total Products</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalProducts}</div>
-            <p className="text-xs text-gray-600 mt-1">Across all stores</p>
+            <div className="text-2xl font-bold">{analytics.totalProducts}</div>
+            <p className="text-xs text-gray-600 mt-1">
+              {analytics.activeProducts} active products
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -171,7 +296,7 @@ export default function VendorDashboardPage() {
           <Card className="bg-gray-50 p-8 text-center">
             <i className="ri-store-2-line text-5xl text-gray-300 mb-4"></i>
             <h3 className="text-lg font-medium text-gray-800 mb-2">No Stores Yet</h3>
-            <p className="text-gray-600 mb-6">Create your first store to start selling on QuickMart</p>
+            <p className="text-gray-600 mb-6">Create your first store to start selling on YourGrocer</p>
             <Button onClick={() => setIsStoreModalOpen(true)}>
               <i className="ri-add-line mr-1"></i>
               Add New Store
@@ -183,7 +308,7 @@ export default function VendorDashboardPage() {
               <Card key={store.id} className="overflow-hidden">
                 <div className="h-40 overflow-hidden">
                   <img 
-                    src={store.imageUrl} 
+                    src={store.imageUrl || '/placeholder-store.jpg'} 
                     alt={store.name} 
                     className="w-full h-full object-cover"
                   />
@@ -204,12 +329,26 @@ export default function VendorDashboardPage() {
                       {store.openingHours}
                     </div>
                   </div>
-                  <Button 
-                    onClick={() => setSelectedStoreId(store.id)} 
-                    className="w-full"
-                  >
-                    Manage Store
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={() => setSelectedStoreId(store.id)} 
+                      className="flex-1"
+                    >
+                      Manage Store
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => handleDeleteStore(store.id)}
+                      disabled={deleteStoreMutation.isPending}
+                    >
+                      {deleteStoreMutation.isPending ? (
+                        <i className="ri-loader-4-line animate-spin"></i>
+                      ) : (
+                        <i className="ri-delete-bin-line"></i>
+                      )}
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}
@@ -278,9 +417,33 @@ export default function VendorDashboardPage() {
                 name="imageUrl"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Store Image URL</FormLabel>
+                    <FormLabel>Store Image</FormLabel>
                     <FormControl>
-                      <Input placeholder="https://..." {...field} />
+                      <div className="flex items-center space-x-4">
+                        <Input 
+                          type="file" 
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              // Here you would typically upload the file to your server
+                              // and get back a URL. For now, we'll use a placeholder
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                field.onChange(reader.result);
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                        {field.value && (
+                          <img 
+                            src={field.value} 
+                            alt="Store preview" 
+                            className="w-20 h-20 object-cover rounded"
+                          />
+                        )}
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -307,12 +470,12 @@ export default function VendorDashboardPage() {
                   name="deliveryFee"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Delivery Fee ($)</FormLabel>
+                      <FormLabel>Delivery Fee (₹)</FormLabel>
                       <FormControl>
                         <Input 
                           type="number" 
                           step="0.01" 
-                          placeholder="2.99"
+                          placeholder="49.00"
                           {...field}
                           onChange={(e) => field.onChange(parseFloat(e.target.value))}
                         />
@@ -329,12 +492,12 @@ export default function VendorDashboardPage() {
                   name="minOrder"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Minimum Order ($)</FormLabel>
+                      <FormLabel>Minimum Order (₹)</FormLabel>
                       <FormControl>
                         <Input 
                           type="number" 
                           step="0.01" 
-                          placeholder="15.00"
+                          placeholder="199.00"
                           {...field}
                           onChange={(e) => field.onChange(parseFloat(e.target.value))}
                         />

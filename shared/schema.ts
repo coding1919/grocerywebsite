@@ -95,7 +95,15 @@ export const insertOrderItemSchema = createInsertSchema(orderItems)
 
 // Type definitions
 export type User = typeof users.$inferSelect;
-export type InsertUser = z.infer<typeof insertUserSchema>;
+export type InsertUser = {
+  username: string;
+  password: string;
+  name: string;
+  email: string;
+  address?: string | null;
+  phone?: string | null;
+  isVendor?: boolean;
+};
 
 export type Store = typeof stores.$inferSelect;
 export type InsertStore = z.infer<typeof insertStoreSchema>;

@@ -65,9 +65,11 @@ export function formatRelativeTime(date: Date): string {
 }
 
 // Format date to human-readable format (e.g., "Today, 10:45 AM")
-export function formatDateTime(date: Date): string {
+export function formatDateTime(date: Date | string): string {
+  // Convert string to Date if needed
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
   const now = new Date();
-  const isToday = now.toDateString() === date.toDateString();
+  const isToday = now.toDateString() === dateObj.toDateString();
   
   const timeOptions: Intl.DateTimeFormatOptions = { 
     hour: 'numeric', 
@@ -75,7 +77,7 @@ export function formatDateTime(date: Date): string {
     hour12: true 
   };
   
-  const time = date.toLocaleTimeString('en-US', timeOptions);
+  const time = dateObj.toLocaleTimeString('en-US', timeOptions);
   
   if (isToday) {
     return `Today, ${time}`;
@@ -83,7 +85,7 @@ export function formatDateTime(date: Date): string {
   
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
-  const isYesterday = yesterday.toDateString() === date.toDateString();
+  const isYesterday = yesterday.toDateString() === dateObj.toDateString();
   
   if (isYesterday) {
     return `Yesterday, ${time}`;
@@ -94,7 +96,7 @@ export function formatDateTime(date: Date): string {
     day: 'numeric' 
   };
   
-  return `${date.toLocaleDateString('en-US', dateOptions)}, ${time}`;
+  return `${dateObj.toLocaleDateString('en-US', dateOptions)}, ${time}`;
 }
 
 // Random ID generator (for local storage items, etc.)

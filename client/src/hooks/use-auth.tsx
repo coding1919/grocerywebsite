@@ -7,6 +7,7 @@ import {
 import { User as SelectUser } from "@shared/schema";
 import { getQueryFn, apiRequest, queryClient } from "../lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 
 type AuthContextType = {
   user: SelectUser | null;
@@ -20,6 +21,7 @@ type AuthContextType = {
 type LoginData = {
   username: string;
   password: string;
+  isVendor?: boolean;
 };
 
 type RegisterData = {
@@ -34,10 +36,12 @@ export const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const {
     data: user,
     error,
     isLoading,
+    refetch: refetchUser
   } = useQuery<SelectUser | undefined, Error>({
     queryKey: ["/api/user"],
     queryFn: getQueryFn({ on401: "returnNull" }),
@@ -46,14 +50,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
       const res = await apiRequest("POST", "/api/login", credentials);
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Login failed");
+      }
       return await res.json();
     },
-    onSuccess: (user: SelectUser) => {
-      queryClient.setQueryData(["/api/user"], user);
+    onSuccess: async (user: SelectUser, variables: LoginData) => {
+      // Invalidate and refetch user data
+      await queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      await refetchUser();
+      
       toast({
         title: "Login successful",
         description: `Welcome back, ${user.name}!`,
       });
+
+      // Redirect based on user type
+      if (variables.isVendor) {
+        setLocation("/vendor/dashboard");
+      } else {
+        setLocation("/dashboard");
+      }
     },
     onError: (error: Error) => {
       toast({
@@ -69,11 +87,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await apiRequest("POST", "/api/register", userData);
       return await res.json();
     },
-    onSuccess: (user: SelectUser) => {
-      queryClient.setQueryData(["/api/user"], user);
+    onSuccess: async (user: SelectUser) => {
+      // Invalidate and refetch user data
+      await queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      await refetchUser();
       toast({
         title: "Registration successful",
-        description: `Welcome to GroceryDukan, ${user.name}!`,
+        description: `Welcome to YourGrocer, ${user.name}!`,
       });
     },
     onError: (error: Error) => {
@@ -89,12 +109,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     mutationFn: async () => {
       await apiRequest("POST", "/api/logout");
     },
-    onSuccess: () => {
-      queryClient.setQueryData(["/api/user"], null);
+    onSuccess: async () => {
+      // Invalidate and refetch user data
+      await queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      await refetchUser();
       toast({
         title: "Logged out",
         description: "You have been successfully logged out",
       });
+      setLocation("/");
     },
     onError: (error: Error) => {
       toast({

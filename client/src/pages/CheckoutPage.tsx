@@ -118,7 +118,7 @@ export default function CheckoutPage() {
     return (
       <div className="py-10 text-center">
         <Helmet>
-          <title>Checkout - QuickMart</title>
+          <title>Checkout - YourGrocer</title>
         </Helmet>
         <div className="max-w-md mx-auto">
           <i className="ri-shopping-cart-line text-6xl text-gray-300 mb-4"></i>
@@ -135,7 +135,7 @@ export default function CheckoutPage() {
   return (
     <div className="py-8">
       <Helmet>
-        <title>Checkout - QuickMart</title>
+        <title>Checkout - YourGrocer</title>
         <meta name="description" content="Complete your grocery order and get fast delivery to your doorstep." />
       </Helmet>
       

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import {
   Form,
@@ -41,10 +42,42 @@ const registerSchema = z.object({
 type LoginFormValues = z.infer<typeof loginSchema>;
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
+// Add this array at the top (after imports)
+const deliveryLocations = [
+  {
+    id: 1,
+    name: "Market Road",
+    address: "Market Road, Mangalore, Karnataka 575001"
+  },
+  {
+    id: 2,
+    name: "Hampankatta",
+    address: "Hampankatta, Mangalore, Karnataka 575001"
+  },
+  {
+    id: 3,
+    name: "Bejai",
+    address: "Bejai, Mangalore, Karnataka 575004"
+  },
+  {
+    id: 4,
+    name: "Kadri",
+    address: "Kadri, Mangalore, Karnataka 575003"
+  },
+  {
+    id: 5,
+    name: "Pumpwell",
+    address: "Pumpwell, Mangalore, Karnataka 575002"
+  }
+];
+
 export default function VendorLoginPage() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const { loginMutation } = useAuth();
   const [activeTab, setActiveTab] = useState<string>("login");
+  const [userAddress, setUserAddress] = useState(deliveryLocations[0].address);
+  const [showLocationMenu, setShowLocationMenu] = useState(false);
 
   // Login form
   const loginForm = useForm<LoginFormValues>({
@@ -70,35 +103,17 @@ export default function VendorLoginPage() {
     },
   });
 
-  // Login mutation
-  const loginMutation = useMutation({
-    mutationFn: async (data: LoginFormValues) => {
-      const res = await apiRequest("POST", "/api/login", data);
-      return await res.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Login Successful",
-        description: "You have been logged in as a vendor",
-      });
-      navigate("/vendor/dashboard");
-    },
-    onError: (error) => {
-      toast({
-        title: "Login Failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
   // Register mutation
   const registerMutation = useMutation({
     mutationFn: async (data: RegisterFormValues) => {
-      const res = await apiRequest("POST", "/api/users", {
+      const res = await apiRequest("POST", "/api/register", {
         ...data,
         isVendor: true,
       });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Registration failed");
+      }
       return await res.json();
     },
     onSuccess: () => {
@@ -109,7 +124,7 @@ export default function VendorLoginPage() {
       setActiveTab("login");
       registerForm.reset();
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({
         title: "Registration Failed",
         description: error.message,
@@ -119,18 +134,27 @@ export default function VendorLoginPage() {
   });
 
   const onLoginSubmit = (data: LoginFormValues) => {
-    loginMutation.mutate(data);
+    loginMutation.mutate({
+      ...data,
+      isVendor: true
+    });
   };
 
   const onRegisterSubmit = (data: RegisterFormValues) => {
     registerMutation.mutate(data);
   };
 
+  const toggleLocationMenu = () => setShowLocationMenu((v) => !v);
+  const handleLocationSelect = (loc: { address: string }) => {
+    setUserAddress(loc.address);
+    setShowLocationMenu(false);
+  };
+
   return (
     <div className="min-h-screen py-8 flex items-center">
       <Helmet>
-        <title>Seller Portal - GroceryDukan</title>
-        <meta name="description" content="Log in to the GroceryDukan seller portal to manage your store and products." />
+        <title>Seller Portal - YourGrocer</title>
+        <meta name="description" content="Log in to the YourGrocer seller portal to manage your store and products." />
       </Helmet>
       
       <div className="container mx-auto px-4">
@@ -140,7 +164,7 @@ export default function VendorLoginPage() {
               <CardHeader>
                 <CardTitle className="text-2xl">Seller Portal</CardTitle>
                 <CardDescription>
-                  Sign in to manage your grocery store on GroceryDukan
+                  Sign in to manage your grocery store on YourGrocer
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -269,7 +293,7 @@ export default function VendorLoginPage() {
                             <FormItem>
                               <FormLabel>Store Address</FormLabel>
                               <FormControl>
-                                <Input placeholder="A-42, Sector 62, Noida, UP 201301" {...field} />
+                                <Input placeholder="42 Market Road, Mangalore, Karnataka 575001" {...field} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -342,7 +366,7 @@ export default function VendorLoginPage() {
           
           <div className="hidden lg:flex flex-col justify-center">
             <div className="bg-gradient-to-r from-primary/10 to-primary/30 p-8 rounded-xl">
-              <h2 className="text-3xl font-bold text-gray-800 mb-4">Grow Your Business with GroceryDukan</h2>
+              <h2 className="text-3xl font-bold text-gray-800 mb-4">Grow Your Business with YourGrocer</h2>
               <p className="text-gray-700 mb-6">
                 Join India's fastest growing grocery platform to connect with customers in your neighborhood. Manage your inventory, track orders, and boost your sales.
               </p>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -38,11 +38,12 @@ export default function AuthPage() {
   const { toast } = useToast();
   const { user, loginMutation, registerMutation } = useAuth();
 
-  // If already logged in, redirect to home
-  if (user) {
-    setLocation("/");
-    return null;
-  }
+  // Handle redirection when user state changes
+  useEffect(() => {
+    if (user) {
+      setLocation("/dashboard");
+    }
+  }, [user, setLocation]);
 
   // Login form
   const loginForm = useForm<LoginFormValues>({
@@ -84,7 +85,7 @@ export default function AuthPage() {
         <div className="flex flex-col md:flex-row gap-8 max-w-6xl mx-auto">
           {/* Left side - Auth forms */}
           <div className="w-full md:w-1/2 bg-white p-6 md:p-8 rounded-lg shadow-md">
-            <h1 className="text-2xl font-bold mb-6 text-gray-800">Welcome to GroceryDukan</h1>
+            <h1 className="text-2xl font-bold mb-6 text-gray-800">Welcome to YourGrocer</h1>
             
             <Tabs value={activeTab} onValueChange={(v: string) => setActiveTab(v as "login" | "register")}>
               <TabsList className="grid w-full grid-cols-2 mb-8">

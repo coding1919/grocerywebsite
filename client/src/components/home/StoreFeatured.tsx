@@ -88,14 +88,14 @@ export default function StoreFeatured() {
                 <span className="text-sm text-gray-500">Delivery Fee</span>
                 <div className="font-semibold text-gray-800 flex items-center">
                   <i className="ri-bike-line mr-1 text-primary"></i>
-                  ${store.deliveryFee.toFixed(2)}
+                  ₹{store.deliveryFee.toFixed(2)}
                 </div>
               </div>
               <div className="bg-gray-50 rounded p-2">
                 <span className="text-sm text-gray-500">Min. Order</span>
                 <div className="font-semibold text-gray-800 flex items-center">
                   <i className="ri-shopping-basket-2-line mr-1 text-primary"></i>
-                  ${store.minOrder.toFixed(2)}
+                  ₹{store.minOrder.toFixed(2)}
                 </div>
               </div>
               <div className="bg-gray-50 rounded p-2">

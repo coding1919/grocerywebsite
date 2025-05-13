@@ -3,6 +3,7 @@ import { Product } from "@shared/schema";
 import { useCart } from "@/context/CartContext";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 
 interface ProductCardProps {
   product: Product;
@@ -12,6 +13,7 @@ export default function ProductCard({ product }: ProductCardProps) {
   const [isFavorite, setIsFavorite] = useState(false);
   const { addItem, isStoreInCart } = useCart();
   const { toast } = useToast();
+  const { user } = useAuth();
   
   const { 
     id, 
@@ -23,6 +25,15 @@ export default function ProductCard({ product }: ProductCardProps) {
   } = product;
 
   const handleAddToCart = () => {
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please login to add items to cart",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     addItem(product);
     
     toast({

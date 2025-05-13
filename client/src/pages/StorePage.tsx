@@ -61,7 +61,7 @@ export default function StorePage() {
   return (
     <>
       <Helmet>
-        <title>{store.name} - QuickMart</title>
+        <title>{store.name} - YourGrocer</title>
         <meta name="description" content={store.description || `Order groceries from ${store.name} with fast delivery.`} />
       </Helmet>
       
@@ -109,14 +109,14 @@ export default function StorePage() {
           <span className="text-sm text-gray-500">Delivery Fee</span>
           <div className="font-semibold text-gray-800 flex items-center">
             <i className="ri-bike-line mr-1 text-primary"></i>
-            ${store.deliveryFee.toFixed(2)}
+            ₹{store.deliveryFee.toFixed(2)}
           </div>
         </div>
         <div className="bg-gray-50 rounded-lg p-3">
           <span className="text-sm text-gray-500">Min. Order</span>
           <div className="font-semibold text-gray-800 flex items-center">
             <i className="ri-shopping-basket-2-line mr-1 text-primary"></i>
-            ${store.minOrder.toFixed(2)}
+            ₹{store.minOrder.toFixed(2)}
           </div>
         </div>
         <div className="bg-gray-50 rounded-lg p-3">
@@ -206,9 +206,9 @@ export default function StorePage() {
       
       {/* Vendor Panel */}
       <VendorPanel 
-        storeId={storeId}
-        isOpen={isVendorPanelOpen}
-        onClose={() => setIsVendorPanelOpen(false)}
+        storeId={storeId} 
+        isOpen={isVendorPanelOpen} 
+        onClose={() => setIsVendorPanelOpen(false)} 
       />
     </>
   );
@@ -216,28 +216,20 @@ export default function StorePage() {
 
 function StorePageSkeleton() {
   return (
-    <div>
-      <div className="relative mb-6">
-        <Skeleton className="h-48 w-full rounded-lg" />
-        <div className="mt-4">
-          <Skeleton className="h-8 w-64 mb-2" />
-          <Skeleton className="h-4 w-40 mb-2" />
-          <Skeleton className="h-4 w-full max-w-xl mb-1" />
-          <Skeleton className="h-4 w-full max-w-xl" />
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+    <div className="space-y-8">
+      <div className="h-48 bg-gray-200 rounded-lg animate-pulse"></div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-16 rounded-lg" />
+          <div key={i} className="h-24 bg-gray-200 rounded-lg animate-pulse"></div>
         ))}
       </div>
-      
-      <Skeleton className="h-8 w-40 mb-4" />
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-        {Array.from({ length: 10 }).map((_, i) => (
-          <Skeleton key={i} className="h-64 rounded-lg" />
-        ))}
+      <div className="space-y-4">
+        <div className="h-8 bg-gray-200 rounded w-1/4 animate-pulse"></div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+          {Array.from({ length: 10 }).map((_, i) => (
+            <div key={i} className="h-64 bg-gray-200 rounded-lg animate-pulse"></div>
+          ))}
+        </div>
       </div>
     </div>
   );

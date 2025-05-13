@@ -15,10 +15,6 @@ export default function HomePage() {
   const [location] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [searchResults, setSearchResults] = useState<{
-    products: Product[];
-    stores: Store[];
-  } | null>(null);
 
   // Get URL params
   useEffect(() => {
@@ -35,86 +31,47 @@ export default function HomePage() {
     }
   }, [location]);
 
-  // Fetch data
-  const { data: products } = useQuery<Product[]>({
-    queryKey: ["/api/products"],
+  // Fetch data with search query
+  const { data: products = [], isLoading: isLoadingProducts } = useQuery<Product[]>({
+    queryKey: ["/api/products", { search: searchQuery }],
+    enabled: !!searchQuery,
   });
 
-  const { data: stores } = useQuery<Store[]>({
-    queryKey: ["/api/stores"],
+  const { data: stores = [], isLoading: isLoadingStores } = useQuery<Store[]>({
+    queryKey: ["/api/stores", { search: searchQuery }],
+    enabled: !!searchQuery,
   });
 
-  const { data: categories } = useQuery<Category[]>({
+  const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ["/api/categories"],
   });
-
-  // Filter data based on search query and category
-  useEffect(() => {
-    if (!searchQuery && !selectedCategory) {
-      setSearchResults(null);
-      return;
-    }
-
-    if (products && stores) {
-      // Filter products based on search query
-      let filteredProducts = products;
-      let filteredStores = stores;
-
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        filteredProducts = products.filter(
-          (product) =>
-            product.name.toLowerCase().includes(query) ||
-            product.description?.toLowerCase().includes(query)
-        );
-
-        filteredStores = stores.filter(
-          (store) =>
-            store.name.toLowerCase().includes(query) ||
-            store.description?.toLowerCase().includes(query)
-        );
-      }
-
-      // Filter by category if selected
-      if (selectedCategory && categories) {
-        const categoryObj = categories.find(
-          (cat) => cat.name.toLowerCase() === selectedCategory.toLowerCase()
-        );
-
-        if (categoryObj) {
-          filteredProducts = filteredProducts.filter(
-            (product) => product.categoryId === categoryObj.id
-          );
-        }
-      }
-
-      setSearchResults({
-        products: filteredProducts,
-        stores: filteredStores,
-      });
-    }
-  }, [searchQuery, selectedCategory, products, stores, categories]);
 
   const clearSearch = () => {
     setSearchQuery("");
     setSelectedCategory(null);
-    setSearchResults(null);
     window.history.pushState({}, "", "/");
   };
 
   // Render search results if any
   const renderSearchResults = () => {
-    if (!searchResults) return null;
+    if (!searchQuery) return null;
 
-    const { products: filteredProducts, stores: filteredStores } = searchResults;
-    const hasResults = filteredProducts.length > 0 || filteredStores.length > 0;
+    if (isLoadingProducts || isLoadingStores) {
+      return (
+        <div className="py-12 text-center">
+          <p className="text-gray-600">Searching...</p>
+        </div>
+      );
+    }
+
+    const hasResults = products.length > 0 || stores.length > 0;
 
     if (!hasResults) {
       return (
         <div className="py-12 text-center">
           <h2 className="text-2xl font-semibold mb-4">No results found</h2>
           <p className="text-gray-600 mb-6">
-            We couldn't find any matches for your search.
+            We couldn't find any matches for "{searchQuery}".
           </p>
           <Button onClick={clearSearch}>Clear Search</Button>
         </div>
@@ -133,12 +90,11 @@ export default function HomePage() {
           </Button>
         </div>
 
-        {filteredStores.length > 0 && (
+        {stores.length > 0 && (
           <div className="mb-10">
-            <h3 className="text-xl font-medium mb-4">Stores ({filteredStores.length})</h3>
+            <h3 className="text-xl font-medium mb-4">Stores ({stores.length})</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* We would map over the stores here and render StoreCard components */}
-              {filteredStores.map((store) => (
+              {stores.map((store) => (
                 <div key={store.id} className="border rounded-lg p-4">
                   <h4 className="font-medium">{store.name}</h4>
                   <p className="text-sm text-gray-600">{store.description}</p>
@@ -151,12 +107,11 @@ export default function HomePage() {
           </div>
         )}
 
-        {filteredProducts.length > 0 && (
+        {products.length > 0 && (
           <div>
-            <h3 className="text-xl font-medium mb-4">Products ({filteredProducts.length})</h3>
+            <h3 className="text-xl font-medium mb-4">Products ({products.length})</h3>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {/* We would map over the products here and render ProductCard components */}
-              {filteredProducts.map((product) => (
+              {products.map((product) => (
                 <div key={product.id} className="border rounded-lg p-4">
                   <h4 className="font-medium">{product.name}</h4>
                   <p className="text-sm text-gray-600 mb-2">{product.description}</p>
@@ -176,12 +131,12 @@ export default function HomePage() {
   return (
     <>
       <Helmet>
-        <title>GroceryDukan - Online Grocery Delivery in India</title>
+        <title>YourGrocer - Online Grocery Delivery in India</title>
         <meta name="description" content="Order groceries from your favorite local stores with fast delivery right to your doorstep in cities across India." />
       </Helmet>
       
       {/* If there's a search/filter active, show results; otherwise show normal home page */}
-      {searchResults ? (
+      {searchQuery ? (
         renderSearchResults()
       ) : (
         <>

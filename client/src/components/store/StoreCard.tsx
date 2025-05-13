@@ -45,7 +45,7 @@ export default function StoreCard({ store }: StoreCardProps) {
           </span>
           <span className="flex items-center">
             <i className="ri-bike-line mr-1"></i>
-            <span>${deliveryFee.toFixed(2)} delivery</span>
+            <span>₹{deliveryFee.toFixed(2)} delivery</span>
           </span>
         </div>
         <Button asChild className="w-full">

@@ -4,6 +4,7 @@ import {
 } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
+import { hashPassword } from "./utils/passwordUtils";
 
 const MemoryStore = createMemoryStore(session);
 
@@ -19,8 +20,10 @@ export interface IStorage {
   getStores(): Promise<Store[]>;
   getStore(id: number): Promise<Store | undefined>;
   getStoresByVendor(vendorId: number): Promise<Store[]>;
+  searchStores(query: string): Promise<Store[]>;
   createStore(store: InsertStore): Promise<Store>;
   updateStore(id: number, storeData: Partial<Store>): Promise<Store | undefined>;
+  deleteStore(id: number): Promise<boolean>;
   
   // Category methods
   getCategories(): Promise<Category[]>;
@@ -31,6 +34,7 @@ export interface IStorage {
   getProducts(): Promise<Product[]>;
   getProductsByStore(storeId: number): Promise<Product[]>;
   getProductsByCategory(categoryId: number): Promise<Product[]>;
+  searchProducts(query: string): Promise<Product[]>;
   getProduct(id: number): Promise<Product | undefined>;
   createProduct(product: InsertProduct): Promise<Product>;
   updateProduct(id: number, productData: Partial<Product>): Promise<Product | undefined>;
@@ -107,7 +111,7 @@ export class MemStorage implements IStorage {
     const user: User = { 
       ...userData, 
       id, 
-      isVendor: false,
+      isVendor: userData.isVendor ?? false,
       address: userData.address || null,
       phone: userData.phone || null
     };
@@ -161,6 +165,54 @@ export class MemStorage implements IStorage {
     const updatedStore = { ...existingStore, ...storeData };
     this.stores.set(id, updatedStore);
     return updatedStore;
+  }
+
+  async deleteStore(id: number): Promise<boolean> {
+    // First check if store exists
+    const store = this.stores.get(id);
+    if (!store) {
+      console.log(`Store ${id} not found`);
+      return false;
+    }
+
+    try {
+      // Delete all products associated with this store
+      const products = await this.getProductsByStore(id);
+      console.log(`Deleting ${products.length} products for store ${id}`);
+      for (const product of products) {
+        const deleted = this.products.delete(product.id);
+        console.log(`Product ${product.id} deleted: ${deleted}`);
+      }
+
+      // Delete all orders associated with this store
+      const orders = await this.getOrdersByStore(id);
+      console.log(`Deleting ${orders.length} orders for store ${id}`);
+      for (const order of orders) {
+        // Delete order items first
+        const orderItems = await this.getOrderItems(order.id);
+        console.log(`Deleting ${orderItems.length} order items for order ${order.id}`);
+        for (const item of orderItems) {
+          const deleted = this.orderItems.delete(item.id);
+          console.log(`Order item ${item.id} deleted: ${deleted}`);
+        }
+        // Then delete the order
+        const deleted = this.orders.delete(order.id);
+        console.log(`Order ${order.id} deleted: ${deleted}`);
+      }
+
+      // Finally delete the store
+      const deleted = this.stores.delete(id);
+      console.log(`Store ${id} deleted: ${deleted}`);
+      
+      // Verify deletion
+      const storeStillExists = this.stores.has(id);
+      console.log(`Store ${id} still exists: ${storeStillExists}`);
+      
+      return deleted && !storeStillExists;
+    } catch (error) {
+      console.error('Error deleting store:', error);
+      return false;
+    }
   }
 
   // Category methods
@@ -288,284 +340,360 @@ export class MemStorage implements IStorage {
 
   // Initialize with sample data
   private initializeData() {
-    // Sample Categories
+    // Initialize categories
     const categories = [
-      { id: 1, name: 'Fruits', icon: 'ri-apple-line', colorClass: 'bg-primary/10 text-primary' },
-      { id: 2, name: 'Vegetables', icon: 'ri-plant-line', colorClass: 'bg-secondary/10 text-secondary' },
-      { id: 3, name: 'Bakery', icon: 'ri-bread-line', colorClass: 'bg-accent/10 text-accent' },
-      { id: 4, name: 'Dairy', icon: 'ri-milk-line', colorClass: 'bg-emerald-100 text-emerald-600' },
-      { id: 5, name: 'Beverages', icon: 'ri-cup-line', colorClass: 'bg-amber-100 text-amber-600' },
-      { id: 6, name: 'Masalas & Spices', icon: 'ri-seedling-line', colorClass: 'bg-rose-100 text-rose-600' },
-      { id: 7, name: 'Atta & Rice', icon: 'ri-seed-line', colorClass: 'bg-yellow-100 text-yellow-600' },
-      { id: 8, name: 'Household', icon: 'ri-home-gear-line', colorClass: 'bg-purple-100 text-purple-600' }
+      { name: "Dairy", icon: "ri-cup-fill", colorClass: "bg-blue-100 text-blue-600" },
+      { name: "Bakery", icon: "ri-cake-2-line", colorClass: "bg-blue-100 text-blue-600" },
+      { name: "Groceries", icon: "ri-shopping-bag-2-line", colorClass: "bg-blue-100 text-blue-600" },
+      { name: "Beverages", icon: "ri-cup-line", colorClass: "bg-blue-100 text-blue-600" },
+      { name: "Snacks", icon: "ri-restaurant-2-line", colorClass: "bg-blue-100 text-blue-600" },
+      { name: "Fruits", icon: "ri-apple-line", colorClass: "bg-blue-100 text-blue-600" },
+      { name: "Vegetables", icon: "ri-plant-line", colorClass: "bg-blue-100 text-blue-600" },
+      { name: "Spices", icon: "ri-flask-line", colorClass: "bg-blue-100 text-blue-600" }
     ];
-    
-    categories.forEach(category => {
-      this.categories.set(category.id, category as Category);
-      this.categoryIdCounter = Math.max(this.categoryIdCounter, category.id + 1);
-    });
 
-    // Sample Vendor User
-    const vendorUser: User = {
-      id: 1,
-      username: 'vendor1',
-      password: 'password123',
-      name: 'Rajesh Kumar',
-      email: 'rajesh@grocerydukan.com',
-      address: '42 M.G. Road, Bangalore, Karnataka 560001',
-      phone: '9876543210',
-      isVendor: true
-    };
-    this.users.set(vendorUser.id, vendorUser);
-    this.userIdCounter = 2;
-
-    // Sample Stores
+    // Initialize stores
     const stores = [
       {
-        id: 1,
         vendorId: 1,
-        name: 'Fresh Bazaar',
-        description: 'Premium grocery store with fresh produce, dairy, and pantry essentials at affordable prices.',
-        imageUrl: 'https://images.unsplash.com/photo-1578916171728-46686eac8d58',
-        address: '23 Koramangala Main Road, Bangalore, Karnataka 560034',
-        location: '12.9352,77.6245',
-        rating: 4.8,
-        reviewCount: 243,
-        deliveryTime: '20-35 min',
-        deliveryFee: 49,
-        minOrder: 299,
-        openingHours: '7AM - 10PM'
+        name: "More SuperMarket",
+        description: "Your one-stop shop for all grocery needs",
+        imageUrl: "https://images.unsplash.com/photo-1604719312566-8912e9227c6a?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800",
+        address: "123 Main Street",
+        location: "12.9716,77.5946",
+        deliveryTime: "20-35 min",
+        deliveryFee: 30,
+        minOrder: 100,
+        openingHours: "7AM - 10PM"
       },
       {
-        id: 2,
         vendorId: 1,
-        name: 'Organic India',
-        description: 'Specializing in organic, pesticide-free vegetables and fruits sourced directly from local farmers.',
-        imageUrl: 'https://images.unsplash.com/photo-1534723452862-4c874018d66d',
-        address: '76 Indiranagar 100ft Road, Bangalore, Karnataka 560038',
-        location: '12.9784,77.6408',
-        rating: 4.6,
-        reviewCount: 158,
-        deliveryTime: '25-40 min',
-        deliveryFee: 59,
-        minOrder: 399,
-        openingHours: '8AM - 9PM'
+        name: "Super Bazaar",
+        description: "Traditional grocery store with authentic products",
+        imageUrl: "https://images.unsplash.com/photo-1578916171728-46686eac8d58?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800",
+        address: "456 Market Road",
+        location: "12.9716,77.5946",
+        deliveryTime: "15-30 min",
+        deliveryFee: 25,
+        minOrder: 50,
+        openingHours: "6AM - 9PM"
       },
       {
-        id: 3,
         vendorId: 1,
-        name: 'Kirana Express',
-        description: 'Your neighborhood grocery store with all daily essentials delivered in under 30 minutes.',
-        imageUrl: 'https://pixabay.com/get/gcf7cb827c648b7ccb499c8c97559278d1b2ee3c86b559293fb8d6050c4be518d9144fabdd937985cfdc4f6e15b6b311abc607c78441d6fb09dda152f15b29a39_1280.jpg',
-        address: '112 JP Nagar 6th Phase, Bangalore, Karnataka 560078',
-        location: '12.9063,77.5955',
-        rating: 4.3,
-        reviewCount: 92,
-        deliveryTime: '15-25 min',
-        deliveryFee: 29,
-        minOrder: 199,
-        openingHours: '6AM - 10PM'
+        name: "Iyenger Bakery",
+        description: "Fresh and delicious bakery items",
+        imageUrl: "https://images.unsplash.com/photo-1555507036-ab1f4038808a?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=800",
+        address: "789 Bakery Lane",
+        location: "12.9716,77.5946",
+        deliveryTime: "10-25 min",
+        deliveryFee: 20,
+        minOrder: 30,
+        openingHours: "6AM - 8PM"
       }
     ];
-    
-    stores.forEach(store => {
-      this.stores.set(store.id, store as Store);
-      this.storeIdCounter = Math.max(this.storeIdCounter, store.id + 1);
-    });
 
-    // Sample Products
+    // Initialize products
     const products = [
-      // Fresh Bazaar Products
+      // More SuperMarket Products
       {
-        id: 1,
         storeId: 1,
-        categoryId: 1,
-        name: 'Kashmiri Apples',
-        description: 'Fresh, sweet and juicy apples from Kashmir valley.',
-        price: 199,
-        unit: 'kg',
-        imageUrl: 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6',
-        stock: 48,
-        sku: 'AP-1001',
-        isActive: true
-      },
-      {
-        id: 2,
-        storeId: 1,
-        categoryId: 4,
-        name: 'Amul Full Cream Milk',
-        description: 'Pasteurized full cream milk from Amul.',
-        price: 68,
-        unit: '1L',
-        imageUrl: 'https://images.unsplash.com/photo-1563636619-e9143da7973b',
-        stock: 32,
-        sku: 'ML-2045',
-        isActive: true
-      },
-      {
-        id: 3,
-        storeId: 1,
-        categoryId: 3,
-        name: 'Whole Wheat Bread',
-        description: 'Freshly baked whole wheat bread made with multigrain flour.',
-        price: 49,
-        unit: 'loaf',
-        imageUrl: 'https://images.unsplash.com/photo-1608198093002-ad4e005484ec',
-        stock: 8,
-        sku: 'BR-3320',
-        isActive: true
-      },
-      {
-        id: 4,
-        storeId: 1,
-        categoryId: 6,
-        name: 'MDH Garam Masala',
-        description: 'Premium blend of aromatic spices for authentic Indian cooking.',
-        price: 72,
-        unit: '100g',
-        imageUrl: 'https://images.unsplash.com/photo-1523049673857-eb18f1d7b578',
-        stock: 23,
-        sku: 'AV-9087',
-        isActive: true
-      },
-      {
-        id: 5,
-        storeId: 1,
-        categoryId: 4,
-        name: 'Farm Fresh Brown Eggs',
-        description: 'Naturally laid, free-range brown eggs from country farms.',
-        price: 89,
-        unit: '6pcs',
-        imageUrl: 'https://pixabay.com/get/g787aa8184d5c21759dcab0cffb4bef7551f62ca39e69b02123ce6a8bdaa1857a0f43140784ba4e08153a4f123b38507ab3695f0346e6558a80d3d9ece665a864_1280.jpg',
-        stock: 25,
-        sku: 'EG-5623',
-        isActive: true
-      },
-      {
-        id: 6,
-        storeId: 1,
-        categoryId: 7,
-        name: 'Aashirvaad Atta',
-        description: 'Premium quality whole wheat flour for chapatis and rotis.',
-        price: 249,
-        unit: '5kg',
-        imageUrl: 'https://images.unsplash.com/photo-1577069861033-55d04cec4ef5',
-        stock: 15,
-        sku: 'RS-6721',
-        isActive: true
-      },
-      {
-        id: 7,
-        storeId: 1,
-        categoryId: 2,
-        name: 'Organic Broccoli',
-        description: 'Fresh, crisp organic broccoli.',
-        price: 2.49,
-        unit: 'bunch',
-        imageUrl: 'https://images.unsplash.com/photo-1584270354949-c26b0d5b4a0c',
-        stock: 30,
-        sku: 'BR-7832',
-        isActive: true
-      },
-      {
-        id: 8,
-        storeId: 1,
-        categoryId: 2,
-        name: 'Fresh Tomatoes',
-        description: 'Vine-ripened tomatoes.',
-        price: 3.29,
-        unit: 'lb',
-        imageUrl: 'https://images.unsplash.com/photo-1518977822534-7049a61ee0c2',
-        stock: 40,
-        sku: 'TM-8943',
-        isActive: true
-      },
-      {
-        id: 9,
-        storeId: 1,
-        categoryId: 6,
-        name: 'Organic Chicken Breast',
-        description: 'Free-range organic chicken breast.',
-        price: 8.99,
-        unit: 'lb',
-        imageUrl: 'https://images.unsplash.com/photo-1604503468506-a8da13d82791',
-        stock: 18,
-        sku: 'CH-9054',
-        isActive: true
-      },
-      {
-        id: 10,
-        storeId: 1,
-        categoryId: 3,
-        name: 'Freshly Made Pasta',
-        description: 'Artisanal freshly made pasta.',
-        price: 6.49,
-        unit: 'pack',
-        imageUrl: 'https://images.unsplash.com/photo-1551462147-ff29053bfc14',
-        stock: 12,
-        sku: 'PA-1165',
-        isActive: true
-      },
-      // Organic Market Products
-      {
-        id: 11,
-        storeId: 2,
-        categoryId: 1,
-        name: 'Organic Bananas',
-        description: 'Fresh organic bananas.',
-        price: 1.99,
-        unit: 'lb',
-        imageUrl: 'https://images.unsplash.com/photo-1528825871115-3581a5387919',
+        categoryId: 1, // Dairy
+        name: "Amul Butter",
+        description: "Pure and creamy butter",
+        price: 110,
+        unit: "pack",
+        imageUrl: "https://images.unsplash.com/photo-1589985273617-ee8e4f4d2b1e?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&h=600",
         stock: 50,
-        sku: 'BN-2276',
+        sku: "AMUL-BTR-200",
         isActive: true
       },
       {
-        id: 12,
-        storeId: 2,
-        categoryId: 2,
-        name: 'Organic Spinach',
-        description: 'Fresh organic spinach.',
-        price: 3.99,
-        unit: 'bag',
-        imageUrl: 'https://images.unsplash.com/photo-1576045057995-568f588f82fb',
-        stock: 20,
-        sku: 'SP-3387',
+        storeId: 1,
+        categoryId: 1, // Dairy
+        name: "Amul Paneer",
+        description: "Fresh and soft paneer",
+        price: 90,
+        unit: "pack",
+        imageUrl: "https://images.unsplash.com/photo-1589985273617-ee8e4f4d2b1e",
+        stock: 30,
+        sku: "AMUL-PNR-200",
         isActive: true
       },
-      // QuickStop Mart Products
       {
-        id: 13,
-        storeId: 3,
-        categoryId: 5,
-        name: 'Bottled Water',
-        description: 'Pure spring water.',
-        price: 1.29,
-        unit: 'bottle',
-        imageUrl: 'https://images.unsplash.com/photo-1564419320461-6870880221ad',
+        storeId: 1,
+        categoryId: 3, // Groceries
+        name: "India Gate Basmati Rice",
+        description: "Premium quality basmati rice",
+        price: 180,
+        unit: "kg",
+        imageUrl: "https://images.unsplash.com/photo-1586201375761-83865001e31c",
         stock: 100,
-        sku: 'WT-4498',
+        sku: "IG-RICE-1KG",
         isActive: true
       },
       {
-        id: 14,
+        storeId: 1,
+        categoryId: 4, // Beverages
+        name: "Horlicks Original Refill",
+        description: "Nutritious health drink",
+        price: 230,
+        unit: "pack",
+        imageUrl: "https://images.unsplash.com/photo-1589985273617-ee8e4f4d2b1e",
+        stock: 40,
+        sku: "HOR-REF-500",
+        isActive: true
+      },
+      {
+        storeId: 1,
+        categoryId: 5, // Snacks
+        name: "Kellogg's Corn Flakes (Honey)",
+        description: "Crunchy honey flavored corn flakes",
+        price: 120,
+        unit: "pack",
+        imageUrl: "https://images.unsplash.com/photo-1589985273617-ee8e4f4d2b1e",
+        stock: 35,
+        sku: "KEL-CF-300",
+        isActive: true
+      },
+      {
+        storeId: 1,
+        categoryId: 6, // Fruits
+        name: "Fresh Apples",
+        description: "Sweet and juicy apples",
+        price: 200,
+        unit: "kg",
+        imageUrl: "https://images.unsplash.com/photo-1568702846914-96b305d2aaeb",
+        stock: 25,
+        sku: "FR-APP-1KG",
+        isActive: true
+      },
+      {
+        storeId: 1,
+        categoryId: 6, // Fruits
+        name: "Fresh Bananas",
+        description: "Ripe and sweet bananas",
+        price: 60,
+        unit: "dozen",
+        imageUrl: "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e",
+        stock: 40,
+        sku: "FR-BAN-DOZ",
+        isActive: true
+      },
+      {
+        storeId: 1,
+        categoryId: 6, // Fruits
+        name: "Fresh Oranges",
+        description: "Juicy and tangy oranges",
+        price: 150,
+        unit: "kg",
+        imageUrl: "https://images.unsplash.com/photo-1582979512210-99b6a53386f9",
+        stock: 30,
+        sku: "FR-ORG-1KG",
+        isActive: true
+      },
+
+      // Super Bazaar Products
+      {
+        storeId: 2,
+        categoryId: 3, // Groceries
+        name: "Ashirwad Atta",
+        description: "Premium quality wheat flour",
+        price: 75,
+        unit: "pack",
+        imageUrl: "https://images.unsplash.com/photo-1589985273617-ee8e4f4d2b1e",
+        stock: 60,
+        sku: "ASH-ATTA-1",
+        isActive: true
+      },
+      {
+        storeId: 2,
+        categoryId: 3, // Groceries
+        name: "Sugar",
+        description: "Pure white sugar",
+        price: 45,
+        unit: "kg",
+        imageUrl: "https://images.unsplash.com/photo-1589985273617-ee8e4f4d2b1e",
+        stock: 100,
+        sku: "SUG-1KG",
+        isActive: true
+      },
+      {
+        storeId: 2,
+        categoryId: 3, // Groceries
+        name: "Rice",
+        description: "Premium quality rice",
+        price: 60,
+        unit: "kg",
+        imageUrl: "https://images.unsplash.com/photo-1586201375761-83865001e31c",
+        stock: 150,
+        sku: "RICE-1KG",
+        isActive: true
+      },
+      {
+        storeId: 2,
+        categoryId: 3, // Groceries
+        name: "Cooking Oil",
+        description: "Pure refined cooking oil",
+        price: 130,
+        unit: "liter",
+        imageUrl: "https://images.unsplash.com/photo-1589985273617-ee8e4f4d2b1e",
+        stock: 40,
+        sku: "OIL-1L",
+        isActive: true
+      },
+      {
+        storeId: 2,
+        categoryId: 4, // Beverages
+        name: "Tea Powder",
+        description: "Premium quality tea powder",
+        price: 200,
+        unit: "pack",
+        imageUrl: "https://images.unsplash.com/photo-1589985273617-ee8e4f4d2b1e",
+        stock: 30,
+        sku: "TEA-500G",
+        isActive: true
+      },
+      {
+        storeId: 2,
+        categoryId: 8, // Spices
+        name: "Red Chilli Powder",
+        description: "Pure red chilli powder",
+        price: 150,
+        unit: "pack",
+        imageUrl: "https://images.unsplash.com/photo-1589985273617-ee8e4f4d2b1e",
+        stock: 25,
+        sku: "CHILLI-500G",
+        isActive: true
+      },
+      {
+        storeId: 2,
+        categoryId: 3, // Groceries
+        name: "Surf Excel",
+        description: "Premium washing powder",
+        price: 130,
+        unit: "kg",
+        imageUrl: "https://images.unsplash.com/photo-1589985273617-ee8e4f4d2b1e",
+        stock: 35,
+        sku: "SURF-1KG",
+        isActive: true
+      },
+      {
+        storeId: 2,
+        categoryId: 3, // Groceries
+        name: "Salt",
+        description: "Iodized salt",
+        price: 15,
+        unit: "pack",
+        imageUrl: "https://images.unsplash.com/photo-1589985273617-ee8e4f4d2b1e",
+        stock: 80,
+        sku: "SALT-1",
+        isActive: true
+      },
+
+      // Iyenger Bakery Products
+      {
         storeId: 3,
-        categoryId: 7,
-        name: 'Paper Towels',
-        description: 'Absorbent paper towels.',
-        price: 3.99,
-        unit: 'roll',
-        imageUrl: 'https://images.unsplash.com/photo-1600857544200-b2f666a9a2ec',
-        stock: 45,
-        sku: 'PT-5509',
+        categoryId: 2, // Bakery
+        name: "Vegetable Puffs",
+        description: "Fresh and crispy vegetable puffs",
+        price: 15,
+        unit: "item",
+        imageUrl: "https://images.unsplash.com/photo-1608198093002-ad4e505484ba",
+        stock: 50,
+        sku: "PUFF-1",
+        isActive: true
+      },
+      {
+        storeId: 3,
+        categoryId: 2, // Bakery
+        name: "Samosa",
+        description: "Spicy and crispy samosas",
+        price: 5,
+        unit: "item",
+        imageUrl: "https://images.unsplash.com/photo-1608198093002-ad4e505484ba",
+        stock: 100,
+        sku: "SAM-1",
+        isActive: true
+      },
+      {
+        storeId: 3,
+        categoryId: 2, // Bakery
+        name: "Cake Slice",
+        description: "Delicious cake slices",
+        price: 10,
+        unit: "pack",
+        imageUrl: "https://images.unsplash.com/photo-1608198093002-ad4e505484ba",
+        stock: 40,
+        sku: "SLICE-1",
+        isActive: true
+      },
+      {
+        storeId: 3,
+        categoryId: 2, // Bakery
+        name: "Biscuits",
+        description: "Crispy and tasty biscuits",
+        price: 10,
+        unit: "pack",
+        imageUrl: "https://images.unsplash.com/photo-1608198093002-ad4e505484ba",
+        stock: 60,
+        sku: "BISC-1",
+        isActive: true
+      },
+      {
+        storeId: 3,
+        categoryId: 1, // Dairy
+        name: "Milk",
+        description: "Fresh and pure milk",
+        price: 27,
+        unit: "pack",
+        imageUrl: "https://images.unsplash.com/photo-1589985273617-ee8e4f4d2b1e",
+        stock: 30,
+        sku: "MILK-1",
         isActive: true
       }
     ];
-    
-    products.forEach(product => {
-      this.products.set(product.id, product as Product);
-      this.productIdCounter = Math.max(this.productIdCounter, product.id + 1);
-    });
+
+    // Initialize data
+    async function initializeStorage(this: MemStorage) {
+      // Create categories
+      for (const category of categories) {
+        await this.createCategory(category);
+      }
+
+      // Create stores
+      for (const store of stores) {
+        await this.createStore(store);
+      }
+
+      // Create products
+      for (const product of products) {
+        await this.createProduct(product);
+      }
+    }
+
+    initializeStorage.call(this);
+  }
+
+  async searchStores(query: string): Promise<Store[]> {
+    console.log('Searching stores with query:', query);
+    const searchQuery = query.toLowerCase();
+    const results = Array.from(this.stores.values()).filter(store => 
+      store.name.toLowerCase().includes(searchQuery) ||
+      (store.description?.toLowerCase().includes(searchQuery) ?? false)
+    );
+    console.log('Found stores:', results);
+    return results;
+  }
+
+  async searchProducts(query: string): Promise<Product[]> {
+    console.log('Searching products with query:', query);
+    const searchQuery = query.toLowerCase();
+    const results = Array.from(this.products.values()).filter(product => 
+      product.name.toLowerCase().includes(searchQuery) ||
+      (product.description?.toLowerCase().includes(searchQuery) ?? false)
+    );
+    console.log('Found products:', results);
+    return results;
   }
 }
 

@@ -1,11 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { Category } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Link, useLocation } from "wouter";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function CategoryNav() {
   const { data: categories, isLoading, error } = useQuery<Category[]>({
     queryKey: ["/api/categories"],
   });
+  const { user } = useAuth();
+  const [, setLocation] = useLocation();
 
   if (error) {
     return (
@@ -17,6 +21,14 @@ export default function CategoryNav() {
     );
   }
 
+  const handleCategoryClick = (categoryId: number) => {
+    if (user) {
+      setLocation(`/stores?category=${categoryId}`);
+    } else {
+      setLocation(`/?category=${categoryId}`);
+    }
+  };
+
   return (
     <section className="mb-8">
       <h2 className="text-xl font-semibold text-gray-800 mb-4">Categories</h2>
@@ -25,7 +37,11 @@ export default function CategoryNav() {
           {isLoading
             ? Array.from({ length: 7 }).map((_, i) => <CategorySkeleton key={i} />)
             : categories?.map((category) => (
-                <CategoryItem key={category.id} category={category} />
+                <CategoryItem 
+                  key={category.id} 
+                  category={category} 
+                  onClick={() => handleCategoryClick(category.id)}
+                />
               ))}
         </div>
       </div>
@@ -35,11 +51,15 @@ export default function CategoryNav() {
 
 interface CategoryItemProps {
   category: Category;
+  onClick: () => void;
 }
 
-function CategoryItem({ category }: CategoryItemProps) {
+function CategoryItem({ category, onClick }: CategoryItemProps) {
   return (
-    <div className="flex flex-col items-center">
+    <div 
+      className="flex flex-col items-center cursor-pointer hover:opacity-80 transition-opacity"
+      onClick={onClick}
+    >
       <div className={`${category.colorClass} w-16 h-16 rounded-full flex items-center justify-center mb-2`}>
         <i className={`${category.icon} text-2xl`}></i>
       </div>

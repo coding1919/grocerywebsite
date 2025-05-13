@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Order, OrderItem, Product } from "@shared/schema";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { Dialog, DialogContent, DialogTitle, DialogClose } from "@/components/ui/dialog";
@@ -11,17 +11,50 @@ interface OrderTrackingProps {
 }
 
 export default function OrderTracking({ order, products = [], open, onClose }: OrderTrackingProps) {
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Update current time every minute
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000); // Update every minute
+
+    return () => clearInterval(timer);
+  }, []);
+
   if (!order) return null;
 
   const getProductById = (id: number) => {
     return products.find(product => product.id === id);
   };
 
+  // Calculate time differences and status
+  const orderTime = new Date(order.createdAt);
+  const processingTime = new Date(orderTime.getTime() + 5 * 60000); // 5 minutes after order
+  const deliveryTime = new Date(orderTime.getTime() + 15 * 60000); // 15 minutes after order
+  const estimatedDelivery = order.estimatedDelivery ? new Date(order.estimatedDelivery) : deliveryTime;
+
+  const isProcessingTimePassed = currentTime >= processingTime;
+  const isDeliveryTimePassed = currentTime >= deliveryTime;
+  const isEstimatedDeliveryPassed = currentTime >= estimatedDelivery;
+
+  const getDeliveredMessage = () => {
+    const messages = [
+      'Your order has been delivered.',
+      'Your order is delayed. Please contact support.',
+      'Your order has been successfully delivered.',
+      'Your order is taking longer than expected. Please contact support.',
+      'Your order has been delivered to your address.',
+      'Your order is delayed due to high traffic. Please contact support.'
+    ];
+    return messages[Math.floor(Math.random() * messages.length)];
+  };
+
   const steps = [
     {
       id: 'confirmed',
       label: 'Order Confirmed',
-      time: formatDateTime(order.createdAt),
+      time: formatDateTime(orderTime),
       description: 'Your order has been received by the store.',
       icon: 'ri-check-line',
       isCompleted: true
@@ -29,39 +62,57 @@ export default function OrderTracking({ order, products = [], open, onClose }: O
     {
       id: 'processing',
       label: 'Order Processing',
-      time: formatDateTime(new Date(order.createdAt.getTime() + 5 * 60000)),
+      time: formatDateTime(processingTime),
       description: 'The store is preparing your items for delivery.',
       icon: 'ri-check-line',
-      isCompleted: order.status !== 'pending'
+      isCompleted: order.status !== 'pending' || isProcessingTimePassed
     },
     {
       id: 'out_for_delivery',
       label: 'Out for Delivery',
-      time: formatDateTime(new Date(order.createdAt.getTime() + 15 * 60000)),
+      time: formatDateTime(deliveryTime),
       description: 'Your order is on its way to you.',
       icon: 'ri-check-line',
-      isCompleted: order.status === 'out_for_delivery' || order.status === 'delivered'
+      isCompleted: order.status === 'out_for_delivery' || order.status === 'delivered' || isDeliveryTimePassed
     },
     {
       id: 'delivered',
       label: 'Delivered',
       time: order.status === 'delivered' 
-        ? formatDateTime(new Date()) 
-        : `Estimated by ${formatDateTime(order.estimatedDelivery || new Date())}`,
-      description: 'Your order will be delivered to your address.',
+        ? formatDateTime(currentTime)
+        : `Estimated by ${formatDateTime(estimatedDelivery)}`,
+      description: order.status === 'delivered' 
+        ? getDeliveredMessage()
+        : isEstimatedDeliveryPassed 
+          ? 'Your order is delayed. Please contact support.'
+          : 'Your order will be delivered to your address.',
       icon: 'ri-home-4-line',
       isCompleted: order.status === 'delivered'
     }
   ];
 
+  // Get current active step
+  const getCurrentStep = () => {
+    if (order.status === 'delivered') return 3;
+    if (order.status === 'out_for_delivery') return 2;
+    if (order.status === 'processing') return 1;
+    if (isProcessingTimePassed) return 1;
+    return 0;
+  };
+
+  const currentStep = getCurrentStep();
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogTitle className="text-2xl font-bold text-gray-800">Track Your Order</DialogTitle>
+      <DialogContent className="sm:max-w-2xl p-0">
+        <div className="sticky top-0 bg-white z-10 p-6 border-b">
+          <DialogTitle className="text-2xl font-bold text-gray-800">Track Your Order</DialogTitle>
         <DialogClose className="absolute right-4 top-4 text-gray-500 hover:text-gray-700">
           <i className="ri-close-line text-2xl"></i>
         </DialogClose>
+        </div>
         
+        <div className="max-h-[calc(90vh-80px)] overflow-y-auto p-6">
         {/* Order Info */}
         <div className="bg-gray-50 rounded-lg p-4 mb-6">
           <div className="flex flex-col md:flex-row justify-between mb-2">
@@ -71,12 +122,12 @@ export default function OrderTracking({ order, products = [], open, onClose }: O
             </div>
             <div>
               <h3 className="text-sm text-gray-500">Order Date</h3>
-              <p className="font-semibold text-gray-800">{formatDateTime(order.createdAt)}</p>
+                <p className="font-semibold text-gray-800">{formatDateTime(orderTime)}</p>
             </div>
             <div>
               <h3 className="text-sm text-gray-500">Estimated Delivery</h3>
               <p className="font-semibold text-gray-800">
-                {formatDateTime(order.estimatedDelivery || new Date())}
+                  {formatDateTime(estimatedDelivery)}
               </p>
             </div>
           </div>
@@ -95,17 +146,19 @@ export default function OrderTracking({ order, products = [], open, onClose }: O
               <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
                 step.isCompleted 
                   ? 'bg-primary text-white' 
+                    : index === currentStep
+                      ? 'bg-primary/20 text-primary border-2 border-primary'
                   : 'bg-gray-200 text-gray-500'
               } border-4 border-white`}>
                 <i className={step.icon}></i>
               </div>
               <div className="ml-4">
                 <h3 className={`font-semibold ${
-                  step.isCompleted ? 'text-gray-800' : 'text-gray-500'
+                    step.isCompleted ? 'text-gray-800' : index === currentStep ? 'text-primary' : 'text-gray-500'
                 }`}>{step.label}</h3>
                 <p className="text-sm text-gray-500">{step.time}</p>
                 <p className={`text-sm ${
-                  step.isCompleted ? 'text-gray-600' : 'text-gray-500'
+                    step.isCompleted ? 'text-gray-600' : index === currentStep ? 'text-primary' : 'text-gray-500'
                 } mt-1`}>{step.description}</p>
               </div>
             </div>
@@ -131,7 +184,7 @@ export default function OrderTracking({ order, products = [], open, onClose }: O
               return (
                 <div key={item.id} className="p-4 flex items-center">
                   <img 
-                    src={product.imageUrl} 
+                    src={product.imageUrl || '/placeholder.png'} 
                     alt={product.name} 
                     className="w-12 h-12 object-cover rounded-md mr-4"
                   />
@@ -146,6 +199,7 @@ export default function OrderTracking({ order, products = [], open, onClose }: O
                 </div>
               );
             })}
+            </div>
           </div>
         </div>
       </DialogContent>

@@ -8,7 +8,7 @@ export default function Footer() {
           <div>
             <div className="flex items-center mb-4">
               <i className="ri-shopping-basket-2-fill text-3xl text-primary mr-2"></i>
-              <span className="text-xl font-semibold text-gray-800">QuickMart</span>
+              <span className="text-xl font-semibold text-gray-800">YourGrocer</span>
             </div>
             <p className="text-gray-600 mb-4">
               Order groceries online with fast delivery right to your doorstep.
@@ -40,15 +40,15 @@ export default function Footer() {
             <ul className="space-y-2">
               <li className="flex items-start">
                 <i className="ri-map-pin-line text-primary mt-1 mr-2"></i>
-                <span className="text-gray-600">123 Grocery St, New York, NY 10001</span>
+                <span className="text-gray-600">123 Grocery St, Mangalore, Dakshina Kannada, Karnataka 575001</span>
               </li>
               <li className="flex items-start">
                 <i className="ri-mail-line text-primary mt-1 mr-2"></i>
-                <span className="text-gray-600">support@quickmart.com</span>
+                <span className="text-gray-600">support@yourgrocer.in</span>
               </li>
               <li className="flex items-start">
                 <i className="ri-customer-service-2-line text-primary mt-1 mr-2"></i>
-                <span className="text-gray-600">+1 (555) 123-4567</span>
+                <span className="text-gray-600">+91 98765 43210</span>
               </li>
             </ul>
           </div>
@@ -56,7 +56,7 @@ export default function Footer() {
         
         <div className="mt-8 pt-8 border-t border-gray-200">
           <div className="flex flex-col md:flex-row md:justify-between items-center">
-            <p className="text-sm text-gray-600">&copy; {new Date().getFullYear()} QuickMart. All rights reserved.</p>
+            <p className="text-sm text-gray-600">&copy; {new Date().getFullYear()} YourGrocer. All rights reserved.</p>
             <div className="flex space-x-6 mt-4 md:mt-0">
               <a href="#" className="text-gray-400 hover:text-primary text-lg">
                 <i className="ri-facebook-fill"></i>

@@ -28,7 +28,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Stores
   app.get("/api/stores", async (req: Request, res: Response) => {
     try {
-      const stores = await storage.getStores();
+      let stores;
+      const search = req.query.search as string | undefined;
+      const vendorId = req.query.vendorId ? parseInt(req.query.vendorId as string) : undefined;
+
+      if (search) {
+        stores = await storage.searchStores(search);
+      } else if (vendorId && !isNaN(vendorId)) {
+        stores = await storage.getStoresByVendor(vendorId);
+      } else {
+        stores = await storage.getStores();
+      }
+      
       res.json(stores);
     } catch (error) {
       res.status(500).json({ message: "Error fetching stores" });
@@ -84,14 +95,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/stores/:id", async (req, res) => {
+    try {
+      const storeId = parseInt(req.params.id);
+      if (isNaN(storeId)) {
+        return res.status(400).json({ message: "Invalid store ID" });
+      }
+
+      console.log(`Attempting to delete store ${storeId}`);
+      const success = await storage.deleteStore(storeId);
+      console.log(`Store deletion result: ${success}`);
+
+      if (!success) {
+        return res.status(404).json({ message: "Store not found or could not be deleted" });
+      }
+
+      // Return success response
+      res.status(200).json({ success: true, message: "Store deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting store:", error);
+      res.status(500).json({ message: "Failed to delete store" });
+    }
+  });
+
   // Products
   app.get("/api/products", async (req: Request, res: Response) => {
     try {
       let products;
       const storeId = req.query.storeId ? parseInt(req.query.storeId as string) : undefined;
       const categoryId = req.query.categoryId ? parseInt(req.query.categoryId as string) : undefined;
+      const search = req.query.search as string | undefined;
 
-      if (storeId && !isNaN(storeId)) {
+      if (search) {
+        console.log('Searching products with query:', search);
+        products = await storage.searchProducts(search);
+        console.log('Found products:', products);
+      } else if (storeId && !isNaN(storeId)) {
         products = await storage.getProductsByStore(storeId);
       } else if (categoryId && !isNaN(categoryId)) {
         products = await storage.getProductsByCategory(categoryId);
@@ -101,6 +140,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(products);
     } catch (error) {
+      console.error('Error searching products:', error);
       res.status(500).json({ message: "Error fetching products" });
     }
   });
@@ -286,28 +326,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/login", async (req: Request, res: Response) => {
-    try {
-      const { username, password } = req.body;
-      
-      if (!username || !password) {
-        return res.status(400).json({ message: "Username and password are required" });
-      }
-      
-      const user = await storage.getUserByUsername(username);
-      
-      if (!user || user.password !== password) {
-        return res.status(401).json({ message: "Invalid username or password" });
-      }
-      
-      // Don't return the password
-      const { password: _, ...userWithoutPassword } = user;
-      res.json(userWithoutPassword);
-    } catch (error) {
-      res.status(500).json({ message: "Error during login" });
-    }
-  });
-  
   app.post("/api/logout", async (req: Request, res: Response) => {
     try {
       // In a real app, this would invalidate the session/token

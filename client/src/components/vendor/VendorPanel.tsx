@@ -8,6 +8,7 @@ import { formatCurrency, formatDateTime } from "@/lib/utils";
 import ProductForm from "./ProductForm";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface VendorPanelProps {
   storeId: number;
@@ -15,9 +16,19 @@ interface VendorPanelProps {
   onClose: () => void;
 }
 
+interface OrderWithItems extends Order {
+  items: Array<{
+    id: number;
+    name: string;
+    quantity: number;
+    price: number;
+  }>;
+}
+
 export default function VendorPanel({ storeId, isOpen, onClose }: VendorPanelProps) {
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [activeTab, setActiveTab] = useState("products");
   const { toast } = useToast();
 
   const { data: store } = useQuery<Store>({
@@ -30,7 +41,7 @@ export default function VendorPanel({ storeId, isOpen, onClose }: VendorPanelPro
     enabled: isOpen,
   });
 
-  const { data: orders = [] } = useQuery<Order[]>({
+  const { data: orders = [] } = useQuery<OrderWithItems[]>({
     queryKey: [`/api/orders?storeId=${storeId}`],
     enabled: isOpen,
   });
@@ -104,206 +115,280 @@ export default function VendorPanel({ storeId, isOpen, onClose }: VendorPanelPro
     return null;
   }
 
-  // Count products by status
-  const activeProducts = products.filter(p => p.isActive).length;
-  const lowStockCount = products.filter(p => p.stock < 10).length;
-
-  // Calculate revenue
-  const totalRevenue = orders
-    .filter(order => order.status === "delivered")
-    .reduce((sum, order) => sum + order.totalAmount, 0);
+  // Calculate analytics metrics
+  const analytics = {
+    totalRevenue: orders
+      .filter(order => order.status === "delivered")
+      .reduce((sum, order) => sum + order.totalAmount, 0),
+    totalOrders: orders.length,
+    activeProducts: products.filter(p => p.isActive).length,
+    lowStockProducts: products.filter(p => p.stock < 10).length,
+    pendingOrders: orders.filter(o => o.status === "pending").length,
+    processingOrders: orders.filter(o => o.status === "processing").length,
+    outForDeliveryOrders: orders.filter(o => o.status === "out_for_delivery").length,
+    deliveredOrders: orders.filter(o => o.status === "delivered").length,
+    cancelledOrders: orders.filter(o => o.status === "cancelled").length,
+    averageOrderValue: orders.length > 0 
+      ? orders.reduce((sum, order) => sum + order.totalAmount, 0) / orders.length 
+      : 0
+  };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-auto">
-        <DialogTitle className="text-2xl font-bold text-gray-800">Vendor Dashboard</DialogTitle>
-        <DialogClose className="absolute right-4 top-4 text-gray-500 hover:text-gray-700">
-          <i className="ri-close-line text-2xl"></i>
-        </DialogClose>
-        
-        {/* Dashboard Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-primary/10 rounded-lg p-4">
-            <h3 className="text-sm text-gray-500 mb-1">Total Orders</h3>
-            <p className="text-2xl font-bold text-gray-800">{orders.length}</p>
-            <p className="text-xs text-green-600 mt-1">↑ 8% from last week</p>
-          </div>
-          <div className="bg-secondary/10 rounded-lg p-4">
-            <h3 className="text-sm text-gray-500 mb-1">Revenue</h3>
-            <p className="text-2xl font-bold text-gray-800">{formatCurrency(totalRevenue)}</p>
-            <p className="text-xs text-green-600 mt-1">↑ 12% from last week</p>
-          </div>
-          <div className="bg-accent/10 rounded-lg p-4">
-            <h3 className="text-sm text-gray-500 mb-1">Active Products</h3>
-            <p className="text-2xl font-bold text-gray-800">{activeProducts}</p>
-            <p className="text-xs text-gray-500 mt-1">of {products.length} total items</p>
-          </div>
-          <div className="bg-purple-100 rounded-lg p-4">
-            <h3 className="text-sm text-gray-500 mb-1">Avg. Rating</h3>
-            <p className="text-2xl font-bold text-gray-800">{store.rating.toFixed(1)}</p>
-            <p className="text-xs text-gray-500 mt-1">from {store.reviewCount} reviews</p>
-          </div>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0">
+        {/* Header - Fixed */}
+        <div className="flex-none flex items-center justify-between p-4 border-b bg-white">
+          <DialogTitle className="text-xl font-bold text-gray-800">
+            {store?.name || "Store Management"}
+          </DialogTitle>
+          <DialogClose className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+            <i className="ri-close-line text-2xl text-gray-500"></i>
+          </DialogClose>
         </div>
         
-        <Tabs defaultValue="products">
-          <TabsList className="mb-4">
-            <TabsTrigger value="products">Products</TabsTrigger>
-            <TabsTrigger value="orders">Orders</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="products">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-semibold text-gray-800">Product Management</h3>
-              <Button onClick={openAddProductForm} className="bg-primary hover:bg-primary-dark flex items-center">
-                <i className="ri-add-line mr-1"></i>
-                Add Product
-              </Button>
-            </div>
-            
-            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead>
-                    <tr className="bg-gray-50">
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {products.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="px-6 py-4 text-center text-gray-500">No products found</td>
-                      </tr>
-                    ) : (
-                      products.map((product) => (
-                        <tr key={product.id}>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <img 
-                                src={product.imageUrl} 
-                                alt={product.name} 
-                                className="w-10 h-10 rounded-full object-cover mr-3"
-                              />
-                              <div>
-                                <div className="text-sm font-medium text-gray-900">{product.name}</div>
-                                <div className="text-xs text-gray-500">SKU: {product.sku || `-`}</div>
+        {/* Content - Scrollable */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-4">
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="mb-4">
+                <TabsTrigger value="products">Products</TabsTrigger>
+                <TabsTrigger value="orders">Orders</TabsTrigger>
+                <TabsTrigger value="analytics">Analytics</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="products">
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-semibold">Products</h3>
+                    <Button onClick={openAddProductForm}>
+                      <i className="ri-add-line mr-1"></i>
+                      Add Product
+                    </Button>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {products.map(product => (
+                      <Card key={product.id}>
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <h4 className="font-medium">{product.name}</h4>
+                              <p className="text-sm text-gray-600">{product.description}</p>
+                              <p className="text-lg font-semibold mt-2">₹{product.price}</p>
+                            </div>
+                            <img 
+                              src={product.imageUrl || ''} 
+                              alt={product.name}
+                              className="w-20 h-20 object-cover rounded"
+                            />
+                          </div>
+                          <div className="flex justify-end mt-4 space-x-2">
+                            <Button variant="outline" size="sm" onClick={() => handleEditProduct(product)}>
+                              <i className="ri-edit-line mr-1"></i>
+                              Edit
+                            </Button>
+                            <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700" onClick={() => handleDeleteProduct(product.id)}>
+                              <i className="ri-delete-bin-line mr-1"></i>
+                              Delete
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="orders">
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Recent Orders</h3>
+                  <div className="space-y-4">
+                    {orders.map(order => (
+                      <Card key={order.id}>
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h4 className="font-medium">Order #{order.id}</h4>
+                              <p className="text-sm text-gray-600">
+                                {new Date(order.createdAt).toLocaleString()}
+                              </p>
+                              <div className="mt-2">
+                                <p className="text-sm text-gray-600">
+                                  <i className="ri-user-line mr-1"></i>
+                                  Customer #{order.userId}
+                                </p>
+                                <p className="text-sm text-gray-600">
+                                  <i className="ri-map-pin-line mr-1"></i>
+                                  {order.deliveryAddress}
+                                </p>
                               </div>
                             </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="text-sm text-gray-700">{product.categoryId || "Uncategorized"}</span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="text-sm text-gray-700">{formatCurrency(product.price)}/{product.unit}</span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`text-sm ${product.stock < 10 ? 'text-red-600 font-medium' : 'text-gray-700'}`}>
-                              {product.stock} {product.unit}s
+                            <div className="text-right">
+                              <p className="font-semibold">₹{order.totalAmount}</p>
+                              <div className="mt-2">
+                                <select
+                                  value={order.status}
+                                  onChange={(e) => handleStatusChange(order.id, e.target.value)}
+                                  className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                    order.status === 'delivered' ? 'bg-green-100 text-green-800' :
+                                    order.status === 'out_for_delivery' ? 'bg-blue-100 text-blue-800' :
+                                    order.status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
+                                    'bg-gray-100 text-gray-800'
+                                  }`}
+                                >
+                                  <option value="pending">Pending</option>
+                                  <option value="processing">Processing</option>
+                                  <option value="out_for_delivery">Out for Delivery</option>
+                                  <option value="delivered">Delivered</option>
+                                  <option value="cancelled">Cancelled</option>
+                                </select>
+                              </div>
+                            </div>
+                          </div>
+                          {order.items && order.items.length > 0 && (
+                            <div className="mt-4 pt-4 border-t">
+                              <h5 className="font-medium mb-2">Order Items</h5>
+                              <div className="space-y-2">
+                                {order.items.map((item) => (
+                                  <div key={item.id} className="flex justify-between text-sm">
+                                    <span>{item.name} x {item.quantity}</span>
+                                    <span>₹{item.price * item.quantity}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="analytics">
+                <div className="space-y-6">
+                  <h3 className="text-lg font-semibold">Store Analytics</h3>
+                  
+                  {/* Key Metrics */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <Card>
+                      <CardContent className="p-4">
+                        <h4 className="text-sm text-gray-500">Total Revenue</h4>
+                        <p className="text-2xl font-bold">₹{analytics.totalRevenue.toFixed(2)}</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <h4 className="text-sm text-gray-500">Total Orders</h4>
+                        <p className="text-2xl font-bold">{analytics.totalOrders}</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <h4 className="text-sm text-gray-500">Active Products</h4>
+                        <p className="text-2xl font-bold">{analytics.activeProducts}</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <h4 className="text-sm text-gray-500">Average Order Value</h4>
+                        <p className="text-2xl font-bold">₹{analytics.averageOrderValue.toFixed(2)}</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Order Status Distribution */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Card>
+                      <CardContent className="p-4">
+                        <h4 className="text-sm text-gray-500 mb-4">Order Status</h4>
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm">Pending</span>
+                            <span className="font-medium">{analytics.pendingOrders}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm">Processing</span>
+                            <span className="font-medium">{analytics.processingOrders}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm">Out for Delivery</span>
+                            <span className="font-medium">{analytics.outForDeliveryOrders}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm">Delivered</span>
+                            <span className="font-medium">{analytics.deliveredOrders}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm">Cancelled</span>
+                            <span className="font-medium">{analytics.cancelledOrders}</span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Inventory Status */}
+                    <Card>
+                      <CardContent className="p-4">
+                        <h4 className="text-sm text-gray-500 mb-4">Inventory Status</h4>
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm">Total Products</span>
+                            <span className="font-medium">{products.length}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm">Active Products</span>
+                            <span className="font-medium">{analytics.activeProducts}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm">Low Stock Products</span>
+                            <span className="font-medium text-yellow-600">{analytics.lowStockProducts}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm">Out of Stock</span>
+                            <span className="font-medium text-red-600">
+                              {products.filter(p => p.stock === 0).length}
                             </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              product.isActive 
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-gray-100 text-gray-800'
-                            }`}>
-                              {product.isActive ? 'Active' : 'Inactive'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <button 
-                              className="text-accent hover:text-accent-dark mr-3"
-                              onClick={() => handleEditProduct(product)}
-                            >
-                              Edit
-                            </button>
-                            <button 
-                              className="text-red-500 hover:text-red-700"
-                              onClick={() => handleDeleteProduct(product.id)}
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="orders">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-semibold text-gray-800">Recent Orders</h3>
-              <Button variant="outline" className="text-primary hover:text-primary-dark font-medium text-sm">
-                View All Orders
-              </Button>
-            </div>
-            
-            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead>
-                    <tr className="bg-gray-50">
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer ID</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {orders.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="px-6 py-4 text-center text-gray-500">No orders found</td>
-                      </tr>
-                    ) : (
-                      orders.map((order) => (
-                        <tr key={order.id}>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            #{order.id.toString().padStart(4, '0')}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                            User #{order.userId}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                            {formatCurrency(order.totalAmount)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <select
-                              className="px-2 py-1 text-xs leading-5 font-semibold rounded-full bg-gray-100 border-0"
-                              value={order.status}
-                              onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                            >
-                              <option value="pending">Pending</option>
-                              <option value="processing">Processing</option>
-                              <option value="out_for_delivery">Out for Delivery</option>
-                              <option value="delivered">Delivered</option>
-                            </select>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                            {formatDateTime(order.createdAt)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <button className="text-accent hover:text-accent-dark">
-                              View Details
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Recent Activity */}
+                  <Card>
+                    <CardContent className="p-4">
+                      <h4 className="text-sm text-gray-500 mb-4">Recent Activity</h4>
+                      <div className="space-y-3">
+                        {orders.slice(0, 5).map(order => (
+                          <div key={order.id} className="flex justify-between items-center text-sm">
+                            <div>
+                              <span className="font-medium">Order #{order.id}</span>
+                              <span className="text-gray-500 ml-2">
+                                {new Date(order.createdAt).toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                order.status === 'delivered' ? 'bg-green-100 text-green-800' :
+                                order.status === 'out_for_delivery' ? 'bg-blue-100 text-blue-800' :
+                                order.status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {order.status}
+                              </span>
+                              <span className="font-medium">₹{order.totalAmount}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
+        </div>
         
         <ProductForm 
           storeId={storeId} 
