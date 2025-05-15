@@ -135,7 +135,7 @@ export default function VendorPanel({ storeId, isOpen, onClose }: VendorPanelPro
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0">
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
         {/* Header - Fixed */}
         <div className="flex-none flex items-center justify-between p-4 border-b bg-white">
           <DialogTitle className="text-xl font-bold text-gray-800">
@@ -147,7 +147,7 @@ export default function VendorPanel({ storeId, isOpen, onClose }: VendorPanelPro
         </div>
         
         {/* Content - Scrollable */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto p-4">
           <div className="p-4">
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="mb-4">

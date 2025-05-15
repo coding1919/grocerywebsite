@@ -1,4 +1,4 @@
-import type { Express, Request, Response } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
@@ -299,6 +299,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedOrder);
     } catch (error) {
       res.status(500).json({ message: "Error updating order status" });
+    }
+  });
+
+  // Add new endpoint for cancelling orders
+  app.post("/api/orders/:id/cancel", async (req: Request, res: Response) => {
+    try {
+      // Set content type explicitly
+      res.setHeader('Content-Type', 'application/json');
+      
+      const id = parseInt(req.params.id);
+      console.log("Attempting to cancel order:", id);
+      
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid order ID" });
+      }
+
+      const order = await storage.getOrder(id);
+      console.log("Found order:", order);
+      
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+
+      // Check if order is within 10 minutes of creation
+      const orderTime = new Date(order.createdAt);
+      const currentTime = new Date();
+      const timeDiffInMinutes = (currentTime.getTime() - orderTime.getTime()) / (1000 * 60);
+      console.log("Time difference in minutes:", timeDiffInMinutes);
+
+      if (timeDiffInMinutes > 10) {
+        return res.status(400).json({ 
+          message: "Order cannot be cancelled after 10 minutes of placement",
+          timeElapsed: Math.round(timeDiffInMinutes)
+        });
+      }
+
+      // Check if order is already cancelled or delivered
+      if (order.status === 'cancelled' || order.status === 'delivered') {
+        return res.status(400).json({ message: "Order cannot be cancelled" });
+      }
+
+      const updatedOrder = await storage.updateOrderStatus(id, 'cancelled');
+      console.log("Updated order:", updatedOrder);
+      
+      if (!updatedOrder) {
+        return res.status(500).json({ message: "Failed to update order status" });
+      }
+
+      // Create a clean response object with only the necessary fields
+      const responseOrder = {
+        id: updatedOrder.id,
+        userId: updatedOrder.userId,
+        storeId: updatedOrder.storeId,
+        status: updatedOrder.status,
+        totalAmount: updatedOrder.totalAmount,
+        deliveryAddress: updatedOrder.deliveryAddress,
+        createdAt: updatedOrder.createdAt.toISOString(),
+        estimatedDelivery: updatedOrder.estimatedDelivery ? updatedOrder.estimatedDelivery.toISOString() : null
+      };
+
+      return res.status(200).json(responseOrder);
+    } catch (error) {
+      console.error("Error cancelling order:", error);
+      throw error; // Let the error handling middleware handle it
     }
   });
 

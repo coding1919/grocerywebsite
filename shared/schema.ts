@@ -76,6 +76,7 @@ export const orders = pgTable("orders", {
   deliveryAddress: text("delivery_address").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   estimatedDelivery: timestamp("estimated_delivery"),
+  reviewed: boolean("reviewed").default(false).notNull(),
 });
 
 export const insertOrderSchema = createInsertSchema(orders)

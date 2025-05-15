@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Order, Product, OrderItem } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -7,9 +7,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import OrderTracking from "@/components/tracking/OrderTracking";
 import { Helmet } from "react-helmet";
+import { useToast } from "@/hooks/use-toast";
+import { cancelOrder, submitReview } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { ReviewDialog } from "@/components/orders/ReviewDialog";
 
 export default function OrdersPage() {
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+  const [reviewOrderId, setReviewOrderId] = useState<number | null>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   
   // Hard-coded user ID for demo
   const userId = 1;
@@ -26,6 +33,73 @@ export default function OrdersPage() {
     queryKey: [`/api/orders/${selectedOrderId}`],
     enabled: !!selectedOrderId,
   });
+
+  const cancelOrderMutation = useMutation({
+    mutationFn: cancelOrder,
+    onMutate: async (orderId) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: [`/api/orders?userId=${userId}`] });
+
+      // Snapshot the previous value
+      const previousOrders = queryClient.getQueryData<Order[]>([`/api/orders?userId=${userId}`]);
+
+      // Optimistically update to the new value
+      queryClient.setQueryData<Order[]>(
+        [`/api/orders?userId=${userId}`],
+        old => old?.map(order => 
+          order.id === orderId ? { ...order, status: 'cancelled' } : order
+        ) ?? []
+      );
+
+      // Return a context object with the snapshotted value
+      return { previousOrders };
+    },
+    onError: (error, orderId, context) => {
+      // If the mutation fails, use the context returned from onMutate to roll back
+      if (context?.previousOrders) {
+        queryClient.setQueryData(
+          [`/api/orders?userId=${userId}`],
+          context.previousOrders
+        );
+      }
+      
+      toast({
+        title: "Cancellation failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+    onSuccess: (cancelledOrder) => {
+      // Close the tracking modal if it's open for the cancelled order
+      if (selectedOrderId === cancelledOrder.id) {
+        setSelectedOrderId(null);
+      }
+      
+      toast({
+        title: "Order cancelled",
+        description: "Your order has been cancelled successfully",
+      });
+    },
+  });
+
+  const submitReviewMutation = useMutation({
+    mutationFn: ({ orderId, rating, comment }: { orderId: number; rating: number; comment: string }) =>
+      submitReview(orderId, rating, comment),
+    onSuccess: () => {
+      setReviewOrderId(null);
+      toast({
+        title: "Review submitted",
+        description: "Thank you for your feedback!",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to submit review",
+        description: error instanceof Error ? error.message : "Please try again",
+        variant: "destructive",
+      });
+    },
+  });
   
   const activeOrders = orders.filter(order => 
     order.status !== "delivered" && order.status !== "cancelled"
@@ -41,6 +115,32 @@ export default function OrdersPage() {
   
   const handleCloseTracking = () => {
     setSelectedOrderId(null);
+  };
+
+  const handleCancelOrder = (orderId: number) => {
+    if (window.confirm("Are you sure you want to cancel this order?")) {
+      cancelOrderMutation.mutate(orderId);
+    }
+  };
+
+  const handleReviewOrder = (orderId: number) => {
+    setReviewOrderId(orderId);
+  };
+
+  const handleSubmitReview = async (rating: number, comment: string) => {
+    if (!reviewOrderId) return;
+    await submitReviewMutation.mutateAsync({ orderId: reviewOrderId, rating, comment });
+  };
+
+  const canCancelOrder = (order: Order) => {
+    const orderTime = new Date(order.createdAt);
+    const currentTime = new Date();
+    const timeDiffInMinutes = (currentTime.getTime() - orderTime.getTime()) / (1000 * 60);
+    return timeDiffInMinutes <= 10 && order.status === 'pending';
+  };
+
+  const canReviewOrder = (order: Order) => {
+    return order.status === 'delivered' && !order.reviewed;
   };
   
   return (
@@ -71,6 +171,8 @@ export default function OrdersPage() {
                   order={order}
                   products={products}
                   onTrackOrder={() => handleOpenTracking(order.id)}
+                  onCancelOrder={() => handleCancelOrder(order.id)}
+                  canCancel={canCancelOrder(order)}
                 />
               ))}
             </div>
@@ -90,6 +192,8 @@ export default function OrdersPage() {
                   order={order}
                   products={products}
                   onTrackOrder={() => handleOpenTracking(order.id)}
+                  onReviewOrder={() => handleReviewOrder(order.id)}
+                  canReview={canReviewOrder(order)}
                   isPastOrder
                 />
               ))}
@@ -104,6 +208,13 @@ export default function OrdersPage() {
         open={!!selectedOrderId}
         onClose={handleCloseTracking}
       />
+
+      <ReviewDialog
+        orderId={reviewOrderId ?? 0}
+        open={!!reviewOrderId}
+        onClose={() => setReviewOrderId(null)}
+        onSubmit={handleSubmitReview}
+      />
     </div>
   );
 }
@@ -112,10 +223,23 @@ interface OrderCardProps {
   order: Order;
   products: Product[];
   onTrackOrder: () => void;
+  onCancelOrder?: () => void;
+  onReviewOrder?: () => void;
+  canCancel?: boolean;
+  canReview?: boolean;
   isPastOrder?: boolean;
 }
 
-function OrderCard({ order, products, onTrackOrder, isPastOrder = false }: OrderCardProps) {
+function OrderCard({ 
+  order, 
+  products, 
+  onTrackOrder, 
+  onCancelOrder, 
+  onReviewOrder,
+  canCancel, 
+  canReview,
+  isPastOrder = false 
+}: OrderCardProps) {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending':
@@ -184,22 +308,46 @@ function OrderCard({ order, products, onTrackOrder, isPastOrder = false }: Order
             </div>
           )}
           
-          <button 
-            className="w-full mt-3 py-2 px-4 bg-accent hover:bg-accent-dark text-white font-medium rounded transition flex items-center justify-center"
-            onClick={onTrackOrder}
-          >
-            {isPastOrder ? (
-              <>
-                <i className="ri-file-list-line mr-2"></i>
-                View Order Details
-              </>
-            ) : (
-              <>
-                <i className="ri-map-pin-line mr-2"></i>
-                Track Order
-              </>
+          <div className="flex gap-2">
+            <button 
+              className="flex-1 py-2 px-4 bg-accent hover:bg-accent-dark text-white font-medium rounded transition flex items-center justify-center"
+              onClick={onTrackOrder}
+            >
+              {isPastOrder ? (
+                <>
+                  <i className="ri-file-list-line mr-2"></i>
+                  View Order Details
+                </>
+              ) : (
+                <>
+                  <i className="ri-map-pin-line mr-2"></i>
+                  Track Order
+                </>
+              )}
+            </button>
+            
+            {onCancelOrder && canCancel && (
+              <Button 
+                variant="destructive"
+                className="flex-1"
+                onClick={onCancelOrder}
+              >
+                <i className="ri-close-circle-line mr-2"></i>
+                Cancel Order
+              </Button>
             )}
-          </button>
+
+            {onReviewOrder && canReview && (
+              <Button 
+                variant="outline"
+                className="flex-1"
+                onClick={onReviewOrder}
+              >
+                <i className="ri-star-line mr-2"></i>
+                Write Review
+              </Button>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>

@@ -88,12 +88,8 @@ export function setupAuth(app: Express) {
       };
       
       const user = await storage.createUser(userToCreate);
-
-      req.login(user, (err) => {
-        if (err) return next(err);
         const { password, ...userResponse } = user;
-        res.status(201).json(userResponse);
-      });
+      res.status(201).json({ message: "Registration successful", user: userResponse });
     } catch (error) {
       next(error);
     }
@@ -103,11 +99,6 @@ export function setupAuth(app: Express) {
     passport.authenticate("local", (err: any, user: Express.User | false | null, info: { message: string } | undefined) => {
       if (err) return next(err);
       if (!user) return res.status(401).json({ message: info?.message || "Invalid username or password" });
-      
-      // Check if the user is a vendor
-      if (!(user as any).isVendor) {
-        return res.status(403).json({ message: "This login is for vendors only. Please use the customer login." });
-      }
       
       req.login(user, (err) => {
         if (err) return next(err);

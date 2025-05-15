@@ -358,7 +358,7 @@ export default function VendorDashboardPage() {
       
       {/* Add Store Modal */}
       <Dialog open={isStoreModalOpen} onOpenChange={setIsStoreModalOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogTitle>Add New Store</DialogTitle>
           <DialogClose className="absolute right-4 top-4 text-gray-500 hover:text-gray-700">
             <i className="ri-close-line text-2xl"></i>

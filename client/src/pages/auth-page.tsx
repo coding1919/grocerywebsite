@@ -76,7 +76,12 @@ export default function AuthPage() {
   const onRegisterSubmit = (data: RegisterFormValues) => {
     // Remove confirmPassword before sending to API
     const { confirmPassword, ...userData } = data;
-    registerMutation.mutate(userData);
+    registerMutation.mutate(userData, {
+      onSuccess: () => {
+        setActiveTab("login");
+        registerForm.reset();
+      }
+    });
   };
 
   return (

@@ -88,12 +88,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return await res.json();
     },
     onSuccess: async (user: SelectUser) => {
-      // Invalidate and refetch user data
-      await queryClient.invalidateQueries({ queryKey: ["/api/user"] });
-      await refetchUser();
       toast({
         title: "Registration successful",
-        description: `Welcome to YourGrocer, ${user.name}!`,
+        description: "Please log in with your new account",
       });
     },
     onError: (error: Error) => {
